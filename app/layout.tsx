@@ -13,10 +13,14 @@ export const metadata: Metadata = {
   description: "لەگەڵ جیهانەکەت پەیوەندی ببەستە لە پۆلا",
 };
 
+import { LanguageProvider } from "@/lib/language-context";
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="ckb" dir="rtl" className={`${vazirmatn.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      <body className="min-h-full flex flex-col font-sans">
+        <LanguageProvider>{children}</LanguageProvider>
+      </body>
     </html>
   );
 }

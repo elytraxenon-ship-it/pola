@@ -18,14 +18,17 @@ import { SkeletonPost } from "./feed/skeleton-post";
 import { StoriesReel } from "./feed/stories-reel";
 import { Post, User } from "./feed/types";
 import { ProfilePage } from "./profile/profile-page";
+import { SettingsPage } from "./settings/settings-page";
+import { useLanguage } from "@/lib/language-context";
 
 interface HomePageProps {
   onLogout?: () => void;
-  initialView?: "feed" | "profile";
+  initialView?: "feed" | "profile" | "settings";
 }
 
 export default function HomePage({ onLogout, initialView = "feed" }: HomePageProps) {
-  const [currentView, setCurrentView] = useState<"feed" | "profile" | "notifications" | "messages">(initialView);
+  const { dir, t } = useLanguage();
+  const [currentView, setCurrentView] = useState<"feed" | "profile" | "notifications" | "messages" | "settings">(initialView);
   const [activeTab, setActiveTab] = useState("pulse");
   const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
   const [isLoading, setIsLoading] = useState(false);
@@ -107,7 +110,7 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground relative">
+    <div dir={dir} className="min-h-screen bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground relative">
       {/* Subtle Pola Ambient Glow */}
       <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_-10%,rgba(168,85,247,0.06),transparent)] dark:bg-[radial-gradient(ellipse_70%_50%_at_50%_-10%,rgba(168,85,247,0.12),transparent)]" />
 
@@ -128,6 +131,10 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
         }}
               onViewProfile={() => {
           setCurrentView("profile");
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
+        onOpenSettings={() => {
+          setCurrentView("settings");
           window.scrollTo({ top: 0, behavior: "smooth" });
         }}
         onViewNotifications={() => {
@@ -165,8 +172,8 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
               onClick={() => setCurrentView("feed")}
               className="flex items-center gap-2 rounded-full border border-border/80 bg-card px-3.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer shadow-2xs"
             >
-              <ArrowLeft className="h-3.5 w-3.5 rotate-180" />
-              <span>گەڕانەوە بۆ دەریای ساتەکان</span>
+              <ArrowLeft className={`h-3.5 w-3.5 ${dir === "rtl" ? "rotate-180" : ""}`} />
+              <span>{t("backToStream")}</span>
             </button>
           </div>
 
@@ -181,7 +188,15 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
               setIsPostDialogOpen(true);
             }}
             onBackToFeed={() => setCurrentView("feed")}
+            onOpenSettings={() => {
+              setCurrentView("settings");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
           />
+        </div>
+      ) : currentView === "settings" ? (
+        <div className="pt-2">
+          <SettingsPage onBack={() => setCurrentView("feed")} />
         </div>
       ) : (
         /* 2-Column Feed Layout (Left Sidebar + Main Stream) */
@@ -195,6 +210,10 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
             }}
             onViewProfile={() => {
               setCurrentView("profile");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            onOpenSettings={() => {
+              setCurrentView("settings");
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}
           />
@@ -211,19 +230,22 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
             <div className="flex items-center justify-between px-2 py-1">
               <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 <Sparkles className="h-3.5 w-3.5 text-primary" />
-                <span>دەریای ساتەکان</span>
+                <span>{dir === "ltr" ? "Moments Stream" : "دەریای ساتەکان"}</span>
               </div>
 
               <button
                 onClick={handleSimulateReload}
                 disabled={isLoading}
                 className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
-                title="تاقیکردنەوەی بارکردنی سەرەتایی"
+                title={dir === "ltr" ? "Test skeleton loading" : "تاقیکردنەوەی بارکردنی سەرەتایی"}
               >
                 <RefreshCw
                   className={`h-3 w-3 ${isLoading ? "animate-spin text-primary" : ""}`}
                 />
-                <span>{isLoading ? "نوێ دەکرێتەوە..." : "تاقیکردنەوەی بارکردن"}</span>
+                <span>{isLoading
+                  ? (dir === "ltr" ? "Refreshing..." : "نوێ دەکرێتەوە...")
+                  : (dir === "ltr" ? "Test Loading" : "تاقیکردنەوەی بارکردن")}
+                </span>
               </button>
             </div>
 
@@ -275,8 +297,8 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
       {/* Floating Feedback Widget from components/motion */}
       <FeedbackWidget
         position="bottom-left"
-        title="ڕا و سەرنج لەسەر پۆلا"
-        placeholder="ئەزموونت چۆنە لەگەڵ تۆڕی پۆلا؟ لێرە بیروڕات بنووسە..."
+        title={dir === "ltr" ? "Feedback on Pola" : "ڕا و سەرنج لەسەر پۆلا"}
+        placeholder={dir === "ltr" ? "How's your experience with Pola? Share your thoughts here..." : "ئەزموونت چۆنە لەگەڵ تۆڕی پۆلا؟ لێرە بیروڕات بنووسە..."}
       />
     </div>
   );

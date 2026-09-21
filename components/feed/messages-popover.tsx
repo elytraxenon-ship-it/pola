@@ -2,7 +2,7 @@
 
 import {
   ChevronLeft,
-  CheckCheck,
+  ChevronRight,
   Maximize2,
   Mic,
   MoreHorizontal,
@@ -14,6 +14,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { DUMMY_CONVERSATIONS } from "./dummy-data";
 import { Conversation } from "./types";
+import { useLanguage } from "@/lib/language-context";
 
 interface MessagesPopoverProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ export function MessagesPopover({
   onViewAll,
   onSelectConversation,
 }: MessagesPopoverProps) {
+  const { language, dir } = useLanguage();
   const [activeTab, setActiveTab] = useState<"all" | "unread" | "groups" | "communities">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [conversations, setConversations] = useState<Conversation[]>(DUMMY_CONVERSATIONS);
@@ -53,6 +55,8 @@ export function MessagesPopover({
     );
   };
 
+  const ChevronEnd = dir === "rtl" ? ChevronLeft : ChevronRight;
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -69,18 +73,20 @@ export function MessagesPopover({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -8 }}
             transition={{ duration: 0.16, ease: "easeOut" }}
-            className="absolute left-0 mt-2 z-50 w-84 sm:w-92 rounded-2xl border border-border/80 bg-popover/95 text-popover-foreground shadow-2xl backdrop-blur-xl overflow-hidden text-right"
-            dir="rtl"
+            dir={dir}
+            className={`absolute ${
+              dir === "rtl" ? "left-0" : "right-0"
+            } mt-2 z-50 w-84 sm:w-92 rounded-2xl border border-border/80 bg-popover/95 text-popover-foreground shadow-2xl backdrop-blur-xl overflow-hidden`}
           >
             {/* Header: Title & Action Tools */}
             <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
               <div className="flex items-center gap-2">
                 <h3 className="font-extrabold text-base tracking-tight text-foreground">
-                  نامەکان
+                  {language === "en" ? "Chats" : "نامەکان"}
                 </h3>
                 {unreadCount > 0 && (
                   <span className="flex h-5 items-center justify-center rounded-full bg-primary/15 px-2 text-[11px] font-bold text-primary">
-                    {unreadCount} نوێ
+                    {unreadCount} {language === "en" ? "new" : "نوێ"}
                   </span>
                 )}
               </div>
@@ -90,7 +96,7 @@ export function MessagesPopover({
                   type="button"
                   onClick={handleMarkAllRead}
                   className="flex size-7.5 items-center justify-center rounded-full hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-                  title="هەمووی وەک خوێندراوە نیشان بدە"
+                  title={language === "en" ? "Mark all as read" : "هەمووی وەک خوێندراوە نیشان بدە"}
                 >
                   <MoreHorizontal className="size-4" />
                 </button>
@@ -102,7 +108,7 @@ export function MessagesPopover({
                     onClose();
                   }}
                   className="flex size-7.5 items-center justify-center rounded-full hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-                  title="گەورەکردن بۆ پەڕەی تەواو"
+                  title={language === "en" ? "Open Messenger" : "گەورەکردن بۆ پەڕەی تەواو"}
                 >
                   <Maximize2 className="size-3.5" />
                 </button>
@@ -114,7 +120,7 @@ export function MessagesPopover({
                     onClose();
                   }}
                   className="flex size-7.5 items-center justify-center rounded-full hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-                  title="نامەی نوێ"
+                  title={language === "en" ? "New message" : "نامەی نوێ"}
                 >
                   <SquarePen className="size-4" />
                 </button>
@@ -124,71 +130,50 @@ export function MessagesPopover({
             {/* Search Input Bar */}
             <div className="px-3 pb-2.5">
               <div className="relative flex items-center">
-                <Search className="absolute right-3 size-3.5 text-muted-foreground pointer-events-none" />
+                <Search className={`absolute ${
+                  dir === "rtl" ? "right-3" : "left-3"
+                } size-3.5 text-muted-foreground pointer-events-none`} />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="گەڕان لە نامەکاندا..."
-                  className="h-8.5 w-full rounded-full border border-border/60 bg-muted/60 pr-8.5 pl-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:bg-background focus:outline-none transition-all"
+                  placeholder={language === "en" ? "Search Messenger..." : "گەڕان لە نامەکاندا..."}
+                  className={`h-8.5 w-full rounded-full border border-border/60 bg-muted/60 ${
+                    dir === "rtl" ? "pr-8.5 pl-3 text-right" : "pl-8.5 pr-3 text-left"
+                  } text-xs text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:bg-background focus:outline-none transition-all`}
                 />
               </div>
             </div>
 
             {/* Filter Tabs Chips */}
             <div className="flex items-center gap-1.5 px-3 pb-2 border-b border-border/50 overflow-x-auto no-scrollbar">
-              <button
-                type="button"
-                onClick={() => setActiveTab("all")}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition-all cursor-pointer shrink-0 ${
-                  activeTab === "all"
-                    ? "bg-foreground text-background shadow-xs font-bold"
-                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                هەمووی
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("unread")}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition-all cursor-pointer shrink-0 ${
-                  activeTab === "unread"
-                    ? "bg-foreground text-background shadow-xs font-bold"
-                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                نەخوێندراوە
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("groups")}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition-all cursor-pointer shrink-0 ${
-                  activeTab === "groups"
-                    ? "bg-foreground text-background shadow-xs font-bold"
-                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                گرووپەکان
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("communities")}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition-all cursor-pointer shrink-0 ${
-                  activeTab === "communities"
-                    ? "bg-foreground text-background shadow-xs font-bold"
-                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                کۆمەڵگەکان
-              </button>
+              {(["all", "unread", "groups", "communities"] as const).map((tab) => {
+                const labels: Record<typeof tab, string> = {
+                  all:         language === "en" ? "All" : "هەمووی",
+                  unread:      language === "en" ? "Unread" : "نەخوێندراوە",
+                  groups:      language === "en" ? "Groups" : "گرووپەکان",
+                  communities: language === "en" ? "Communities" : "کۆمەڵگەکان",
+                };
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setActiveTab(tab)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-all cursor-pointer shrink-0 ${
+                      activeTab === tab
+                        ? "bg-foreground text-background shadow-xs font-bold"
+                        : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    {labels[tab]}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Conversation List Body (Scrollable with max height) */}
             <div className="max-h-[360px] overflow-y-auto divide-y divide-border/30 scrollbar-thin">
-              {/* Message Request Row (Like reference image) */}
+              {/* Message Request Row */}
               <div
                 onClick={() => {
                   onViewAll();
@@ -202,12 +187,12 @@ export function MessagesPopover({
                 <div className="flex-1 overflow-hidden">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-xs text-foreground truncate">
-                      داواکاری نوێی نامە
+                      {language === "en" ? "Message Requests" : "داواکاری نوێی نامە"}
                     </span>
-                    <ChevronLeft className="size-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    <ChevronEnd className="size-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                   </div>
                   <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                    لە عەبدوڵڵا جافەوە
+                    {language === "en" ? "From Abdullah Jaf" : "لە عەبدوڵڵا جافەوە"}
                   </p>
                 </div>
               </div>
@@ -215,7 +200,7 @@ export function MessagesPopover({
               {/* Individual Conversations */}
               {filteredConversations.length === 0 ? (
                 <div className="p-8 text-center text-xs text-muted-foreground">
-                  هیچ نامەیەک نەدۆزرایەوە
+                  {language === "en" ? "No messages found" : "هیچ نامەیەک نەدۆزرایەوە"}
                 </div>
               ) : (
                 filteredConversations.map((conv) => (
@@ -239,7 +224,7 @@ export function MessagesPopover({
                         />
                       </div>
                       {conv.contact.online && (
-                        <span className="absolute bottom-0 right-0 size-3 rounded-full bg-emerald-500 ring-2 ring-background" />
+                        <span className={`absolute bottom-0 ${dir === "rtl" ? "left-0" : "right-0"} size-3 rounded-full bg-emerald-500 ring-2 ring-background`} />
                       )}
                     </div>
 
@@ -295,8 +280,8 @@ export function MessagesPopover({
                 }}
                 className="w-full py-1 text-xs font-bold text-primary hover:text-primary/80 hover:underline transition-all cursor-pointer flex items-center justify-center gap-1"
               >
-                <span>بینینی هەموو لە پەیامبەردا</span>
-                <ChevronLeft className="size-3.5" />
+                <span>{language === "en" ? "See all in Messenger" : "بینینی هەموو لە پەیامبەردا"}</span>
+                <ChevronEnd className="size-3.5" />
               </button>
             </div>
           </motion.div>

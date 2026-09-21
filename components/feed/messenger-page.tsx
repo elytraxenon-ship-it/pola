@@ -26,6 +26,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/motion/button";
 import { CURRENT_USER, DUMMY_CONVERSATIONS } from "./dummy-data";
 import { ChatMessage, Conversation, User } from "./types";
+import { useLanguage } from "@/lib/language-context";
 
 interface MessengerPageProps {
   onBack: () => void;
@@ -33,6 +34,7 @@ interface MessengerPageProps {
 }
 
 export function MessengerPage({ onBack, initialContact }: MessengerPageProps) {
+  const { language, dir } = useLanguage();
   const [conversations, setConversations] = useState<Conversation[]>(DUMMY_CONVERSATIONS);
   const [selectedConvId, setSelectedConvId] = useState<string>(() => {
     if (initialContact) {
@@ -135,26 +137,30 @@ export function MessengerPage({ onBack, initialContact }: MessengerPageProps) {
   });
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-2 sm:px-4 py-3 text-right" dir="rtl">
+    <div className={`w-full max-w-7xl mx-auto px-2 sm:px-4 py-3 ${
+      dir === "rtl" ? "text-right" : "text-left"
+    }`} dir={dir}>
       {/* Top Header Bar with Back Button */}
       <div className="flex items-center pb-2.5 mb-1.5">
         <button
           onClick={onBack}
           className="flex items-center gap-2 rounded-full border border-border/80 bg-card px-3.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer shadow-2xs"
         >
-          <ArrowLeft className="h-3.5 w-3.5 rotate-180" />
-          <span>گەڕانەوە بۆ دەریای ساتەکان</span>
+          <ArrowLeft className={`h-3.5 w-3.5 ${dir === "rtl" ? "rotate-180" : ""}`} />
+          <span>{language === "en" ? "Back to Feed" : "گەڕانەوە بۆ دەریای ساتەکان"}</span>
         </button>
       </div>
 
       {/* Main 2-to-3 Panel Messenger App Frame */}
       <div className="relative flex h-[calc(100vh-8.5rem)] min-h-[580px] w-full rounded-2xl md:rounded-3xl border border-border/80 bg-card/60 shadow-lg backdrop-blur-md overflow-hidden">
         {/* Panel 1: Conversations List Sidebar */}
-        <div className="w-full sm:w-80 md:w-88 shrink-0 flex flex-col border-l border-border/70 bg-card/80">
+        <div className={`w-full sm:w-80 md:w-88 shrink-0 flex flex-col ${
+          dir === "rtl" ? "border-l" : "border-r"
+        } border-border/70 bg-card/80`}>
           {/* Header */}
           <div className="flex items-center justify-between p-4 pb-3">
             <h2 className="text-xl font-extrabold tracking-tight text-foreground">
-              وتووێژەکان
+              {language === "en" ? "Chats" : "وتووێژەکان"}
             </h2>
             <div className="flex items-center gap-1 text-muted-foreground">
               <button
@@ -170,13 +176,17 @@ export function MessengerPage({ onBack, initialContact }: MessengerPageProps) {
           {/* Search Box */}
           <div className="px-4 pb-3">
             <div className="relative flex items-center">
-              <Search className="absolute right-3.5 size-3.5 text-muted-foreground pointer-events-none" />
+              <Search className={`absolute ${
+                dir === "rtl" ? "right-3.5" : "left-3.5"
+              } size-3.5 text-muted-foreground pointer-events-none`} />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="گەڕان لە وتووێژەکاندا..."
-                className="h-9 w-full rounded-full border border-border/60 bg-muted/50 pr-9.5 pl-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:bg-background focus:outline-none transition-all"
+                placeholder={language === "en" ? "Search chats..." : "گەڕان لە وتووێژەکاندا..."}
+                className={`h-9 w-full rounded-full border border-border/60 bg-muted/50 ${
+                  dir === "rtl" ? "pr-9.5 pl-3 text-right" : "pl-9.5 pr-3 text-left"
+                } text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:bg-background focus:outline-none transition-all`}
               />
             </div>
           </div>
@@ -191,7 +201,7 @@ export function MessengerPage({ onBack, initialContact }: MessengerPageProps) {
                   : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
-              هەمووی
+              {language === "en" ? "All" : "هەمووی"}
             </button>
             <button
               onClick={() => setActiveTab("unread")}
@@ -201,7 +211,7 @@ export function MessengerPage({ onBack, initialContact }: MessengerPageProps) {
                   : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
-              نەخوێندراوە
+              {language === "en" ? "Unread" : "نەخوێندراوە"}
             </button>
             <button
               onClick={() => setActiveTab("groups")}
@@ -211,7 +221,7 @@ export function MessengerPage({ onBack, initialContact }: MessengerPageProps) {
                   : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
-              گرووپەکان
+              {language === "en" ? "Groups" : "گرووپەکان"}
             </button>
           </div>
 
@@ -313,7 +323,9 @@ export function MessengerPage({ onBack, initialContact }: MessengerPageProps) {
                   </span>
                   <span>·</span>
                   <span className={activeConversation.contact.online ? "text-emerald-500 font-medium" : ""}>
-                    {activeConversation.contact.online ? "چالاکە لە پۆلا" : "ناچالاک"}
+                    {activeConversation.contact.online
+                      ? language === "en" ? "Active in Pola" : "چالاکە لە پۆلا"
+                      : language === "en" ? "Offline" : "ناچالاک"}
                   </span>
                 </div>
               </div>
@@ -439,8 +451,14 @@ export function MessengerPage({ onBack, initialContact }: MessengerPageProps) {
               type="text"
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
-              placeholder={`نامەیەک بنووسە بۆ ${activeConversation.contact.name}...`}
-              className="flex-1 h-9.5 rounded-full border border-border/70 bg-muted/60 px-4 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:bg-background focus:outline-none transition-all"
+              placeholder={
+                language === "en"
+                  ? `Write a message to ${activeConversation.contact.name}...`
+                  : `نامەیەک بنووسە بۆ ${activeConversation.contact.name}...`
+              }
+              className={`flex-1 h-9.5 rounded-full border border-border/70 bg-muted/60 px-4 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:bg-background focus:outline-none transition-all ${
+                dir === "rtl" ? "text-right" : "text-left"
+              }`}
             />
 
             {/* Send Button */}
@@ -449,16 +467,18 @@ export function MessengerPage({ onBack, initialContact }: MessengerPageProps) {
               disabled={!inputMessage.trim()}
               size="sm"
               className="rounded-full size-9 p-0 flex items-center justify-center cursor-pointer shrink-0"
-              title="ناردن"
+              title={language === "en" ? "Send" : "ناردن"}
             >
-              <Send className="size-4 rotate-180" />
+              <Send className={`size-4 ${dir === "rtl" ? "rotate-180" : ""}`} />
             </Button>
           </form>
         </div>
 
         {/* Panel 3: Contact Info & Media Drawer (Collapsible) */}
         {showInfoSidebar && (
-          <div className="hidden lg:flex w-72 shrink-0 flex-col border-r border-border/70 bg-card/60 p-4 overflow-y-auto">
+          <div className={`hidden lg:flex w-72 shrink-0 flex-col ${
+            dir === "rtl" ? "border-r text-right" : "border-l text-left"
+          } border-border/70 bg-card/60 p-4 overflow-y-auto`}>
             <div className="flex flex-col items-center text-center pb-4 border-b border-border/60">
               <div className="relative size-20 rounded-full overflow-hidden bg-muted border-2 border-border/80 mb-3 shadow-md">
                 <img
@@ -475,16 +495,16 @@ export function MessengerPage({ onBack, initialContact }: MessengerPageProps) {
               </span>
               <div className="mt-3 flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-600">
                 <span className="size-1.5 rounded-full bg-emerald-500" />
-                <span>چالاکە لە پۆلا</span>
+                <span>{language === "en" ? "Active in Pola" : "چالاکە لە پۆلا"}</span>
               </div>
             </div>
 
             {/* Shared Media Highlights */}
             <div className="py-4 border-b border-border/60">
               <div className="flex items-center justify-between text-xs font-bold text-foreground mb-2.5">
-                <span>وێنە و مێدیای هاوبەش</span>
+                <span>{language === "en" ? "Shared Media" : "وێنە و مێدیای هاوبەش"}</span>
                 <span className="text-[10px] text-primary cursor-pointer hover:underline">
-                  بینینی هەمووی
+                  {language === "en" ? "See all" : "بینینی هەمووی"}
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-1.5 rounded-xl overflow-hidden">

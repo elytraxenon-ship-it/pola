@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLanguage } from "@/lib/language-context";
 
 interface SearchResultItem {
   id: string;
@@ -93,6 +94,7 @@ const INITIAL_RECENT_SEARCHES = [
 ];
 
 export function SearchDropdown() {
+  const { language, dir } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -188,14 +190,20 @@ export function SearchDropdown() {
           onClick={handleOpen}
           className="relative flex items-center cursor-pointer group"
         >
-          <Search className="absolute right-3.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none group-hover:text-foreground transition-colors" />
+          <Search className={`absolute ${
+            dir === "rtl" ? "right-3.5" : "left-3.5"
+          } h-3.5 w-3.5 text-muted-foreground pointer-events-none group-hover:text-foreground transition-colors`} />
           <input
             type="text"
             readOnly
-            placeholder="گەڕان لە پۆلا..."
-            className="h-9 w-44 md:w-64 lg:w-72 rounded-full border border-border/80 bg-muted/40 pr-9 pl-8 text-xs text-foreground placeholder:text-muted-foreground/70 group-hover:bg-muted/60 transition-all cursor-pointer text-right"
+            placeholder={language === "en" ? "Search Pola..." : "گەڕان لە پۆلا..."}
+            className={`h-9 w-44 md:w-64 lg:w-72 rounded-full border border-border/80 bg-muted/40 ${
+              dir === "rtl" ? "pr-9 pl-8 text-right" : "pl-9 pr-8 text-left"
+            } text-xs text-foreground placeholder:text-muted-foreground/70 group-hover:bg-muted/60 transition-all cursor-pointer`}
           />
-          <span className="absolute left-3 hidden lg:inline-flex items-center rounded border border-border/80 bg-background/60 px-1.5 py-0.5 text-[9px] font-mono text-muted-foreground" dir="ltr">
+          <span className={`absolute ${
+            dir === "rtl" ? "left-3" : "right-3"
+          } hidden lg:inline-flex items-center rounded border border-border/80 bg-background/60 px-1.5 py-0.5 text-[9px] font-mono text-muted-foreground`} dir="ltr">
             ⌘K
           </span>
         </div>
@@ -203,16 +211,18 @@ export function SearchDropdown() {
 
       {/* Facebook-style In-Place Search Dropdown Overlay */}
       {isOpen && (
-        <div className="absolute top-[-4px] right-[-6px] z-50 w-80 md:w-96 rounded-2xl border border-border/80 bg-card p-3 shadow-2xl backdrop-blur-xl animate-in fade-in-0 zoom-in-98 duration-150 text-right">
+        <div className={`absolute top-[-4px] ${
+          dir === "rtl" ? "right-[-6px] text-right" : "left-[-6px] text-left"
+        } z-50 w-80 md:w-96 rounded-2xl border border-border/80 bg-card p-3 shadow-2xl backdrop-blur-xl animate-in fade-in-0 zoom-in-98 duration-150`}>
           {/* Header Bar with Back Arrow and Search Input */}
           <div className="flex items-center gap-2 pb-2.5 border-b border-border/50">
             <button
               type="button"
               onClick={handleClose}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-              title="داخستنی گەڕان"
+              title={language === "en" ? "Close search" : "داخستنی گەڕان"}
             >
-              <ArrowLeft className="h-4 w-4 rotate-180" />
+              <ArrowLeft className={`h-4 w-4 ${dir === "rtl" ? "rotate-180" : ""}`} />
             </button>
 
             <div className="relative flex flex-1 items-center">
@@ -221,14 +231,18 @@ export function SearchDropdown() {
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="گەڕان لە پۆلا..."
-                className="h-8.5 w-full rounded-full border border-border/60 bg-muted/40 px-3.5 pl-8 text-xs text-foreground placeholder:text-muted-foreground focus:bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 text-right"
+                placeholder={language === "en" ? "Search Pola..." : "گەڕان لە پۆلا..."}
+                className={`h-8.5 w-full rounded-full border border-border/60 bg-muted/40 ${
+                  dir === "rtl" ? "px-3.5 pl-8 text-right" : "px-3.5 pr-8 text-left"
+                } text-xs text-foreground placeholder:text-muted-foreground focus:bg-background focus:outline-none focus:ring-1 focus:ring-primary/40`}
               />
               {query && (
                 <button
                   type="button"
                   onClick={() => setQuery("")}
-                  className="absolute left-2.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                  className={`absolute ${
+                    dir === "rtl" ? "left-2.5" : "right-2.5"
+                  } text-muted-foreground hover:text-foreground cursor-pointer`}
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -311,14 +325,14 @@ export function SearchDropdown() {
               <div className="space-y-1.5 pt-1">
                 <div className="flex items-center justify-between px-2 pb-1">
                   <span className="text-xs font-bold text-foreground">
-                    گەڕانە نوێیەکان
+                    {language === "en" ? "Recent Searches" : "گەڕانە نوێیەکان"}
                   </span>
                   <button
                     type="button"
                     onClick={() => setRecentSearches([])}
                     className="text-[11px] font-medium text-primary hover:underline cursor-pointer"
                   >
-                    سڕینەوەی هەمووی
+                    {language === "en" ? "Clear all" : "سڕینەوەی هەمووی"}
                   </button>
                 </div>
 
@@ -341,7 +355,7 @@ export function SearchDropdown() {
                         type="button"
                         onClick={(e) => handleRemoveRecent(term, e)}
                         className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground opacity-60 group-hover:opacity-100 transition-all cursor-pointer"
-                        title="سڕینەوە لە مێژوو"
+                        title={language === "en" ? "Remove from history" : "سڕینەوە لە مێژوو"}
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
@@ -349,7 +363,9 @@ export function SearchDropdown() {
                   ))
                 ) : (
                   <p className="px-2 py-4 text-center text-xs text-muted-foreground">
-                    هیچ گەڕانێکی پێشوو نییە.
+                    {language === "en"
+                      ? "No recent searches."
+                      : "هیچ گەڕانێکی پێشوو نییە."}
                   </p>
                 )}
               </div>

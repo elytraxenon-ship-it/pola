@@ -19,6 +19,7 @@ import { Avatar10 } from "@/components/motion/avatar";
 import { Button } from "@/components/motion/button";
 import { CURRENT_USER } from "./dummy-data";
 import { Comment, Post } from "./types";
+import { useLanguage } from "@/lib/language-context";
 
 interface PostCardProps {
   post: Post;
@@ -35,11 +36,16 @@ export function PostCard({
   onSaveToggle,
   onOpenDialog,
 }: PostCardProps) {
+  const { language, dir } = useLanguage();
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [isLikedLocal, setIsLikedLocal] = useState(post.isLiked ?? false);
   const [likesCountLocal, setLikesCountLocal] = useState(post.likesCount);
   const [isSavedLocal, setIsSavedLocal] = useState(post.isSaved ?? false);
+
+  const displayContent = language === "en" && post.contentEn ? post.contentEn : post.content;
+  const displayTags = language === "en" && post.tagsEn ? post.tagsEn : post.tags;
+  const displayTimestamp = language === "en" && post.timestampEn ? post.timestampEn : post.timestamp;
 
   const handleLike = () => {
     setIsLikedLocal((prev) => !prev);
@@ -84,7 +90,7 @@ export function PostCard({
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <span dir="ltr" className="font-sans">{post.author.handle}</span>
               <span>·</span>
-              <span>{post.timestamp}</span>
+              <span>{displayTimestamp}</span>
             </div>
           </div>
         </div>
@@ -97,7 +103,7 @@ export function PostCard({
                 ? "text-primary bg-primary/10"
                 : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
             }`}
-            title="پاشەکەوتکردنی سات"
+            title={language === "en" ? "Bookmark moment" : "پاشەکەوتکردنی سات"}
           >
             <Bookmark className={`h-4 w-4 ${isSavedLocal ? "fill-current" : ""}`} />
           </button>
@@ -111,12 +117,14 @@ export function PostCard({
       </div>
 
       {/* Content Text */}
-      <div className="px-4 pb-3 text-xs md:text-sm text-foreground leading-relaxed">
-        <p className="whitespace-pre-line">{post.content}</p>
+      <div className={`px-4 pb-3 text-xs md:text-sm text-foreground leading-relaxed ${
+        dir === "rtl" ? "text-right" : "text-left"
+      }`}>
+        <p className="whitespace-pre-line">{displayContent}</p>
 
-        {post.tags && post.tags.length > 0 && (
+        {displayTags && displayTags.length > 0 && (
           <div className="mt-2.5 flex flex-wrap gap-1.5">
-            {post.tags.map((tag) => (
+            {displayTags.map((tag) => (
               <span
                 key={tag}
                 className="rounded-full bg-muted/60 px-2.5 py-0.5 text-[11px] font-medium text-foreground/80 hover:bg-muted transition-colors cursor-pointer"
@@ -170,7 +178,7 @@ export function PostCard({
               }
             }}
             className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors cursor-pointer"
-            title="بینینی لێدوانەکان"
+            title={language === "en" ? "View comments" : "بینینی لێدوانەکان"}
           >
             <MessageSquare className="h-4 w-4" />
             <span>
@@ -197,7 +205,9 @@ export function PostCard({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="border-t border-border/50 bg-muted/20 px-4 py-3 rounded-b-2xl text-right"
+            className={`border-t border-border/50 bg-muted/20 px-4 py-3 rounded-b-2xl ${
+              dir === "rtl" ? "text-right" : "text-left"
+            }`}
           >
             {post.comments.length > 0 ? (
               <div className="space-y-2.5 mb-3">
@@ -214,11 +224,13 @@ export function PostCard({
                           {comment.author.name}
                         </span>
                         <span className="text-[10px] text-muted-foreground">
-                          {comment.timestamp}
+                          {language === "en" && comment.timestampEn ? comment.timestampEn : comment.timestamp}
                         </span>
                       </div>
-                      <p className="mt-1 text-foreground/90 leading-relaxed text-right">
-                        {comment.content}
+                      <p className={`mt-1 text-foreground/90 leading-relaxed ${
+                        dir === "rtl" ? "text-right" : "text-left"
+                      }`}>
+                        {language === "en" && comment.contentEn ? comment.contentEn : comment.content}
                       </p>
                     </div>
                   </div>
@@ -226,7 +238,9 @@ export function PostCard({
               </div>
             ) : (
               <p className="mb-3 text-xs text-muted-foreground text-center py-1">
-                هیچ لێدوانێک نییە. یەکەم سەرنج تۆ بنووسە!
+                {language === "en"
+                  ? "No comments yet. Be the first to share your thoughts!"
+                  : "هیچ لێدوانێک نییە. یەکەم سەرنج تۆ بنووسە!"}
               </p>
             )}
 
@@ -242,12 +256,16 @@ export function PostCard({
                   type="text"
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
-                  placeholder="بۆچوونێک بنووسە..."
-                  className="w-full rounded-full border border-border/80 bg-card px-4 py-2 pl-9 text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-primary/40 text-right"
+                  placeholder={language === "en" ? "Write a comment..." : "بۆچوونێک بنووسە..."}
+                  className={`w-full rounded-full border border-border/80 bg-card px-4 py-2 ${
+                    dir === "rtl" ? "pl-9 text-right" : "pr-9 text-left"
+                  } text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-primary/40`}
                 />
                 <button
                   type="button"
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className={`absolute ${
+                    dir === "rtl" ? "left-3" : "right-3"
+                  } top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground`}
                 >
                   <Smile className="h-3.5 w-3.5" />
                 </button>
@@ -258,7 +276,7 @@ export function PostCard({
                 disabled={!commentText.trim()}
                 className="rounded-full shrink-0 h-8 px-3"
               >
-                <Send className="h-3.5 w-3.5 rotate-180" />
+                <Send className={`h-3.5 w-3.5 ${dir === "rtl" ? "rotate-180" : ""}`} />
               </Button>
             </form>
           </motion.div>

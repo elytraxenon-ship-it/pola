@@ -17,12 +17,14 @@ import { Button } from "@/components/motion/button";
 import { toast } from "@/components/ui/toast";
 import { CURRENT_USER } from "./dummy-data";
 import { Post } from "./types";
+import { useLanguage } from "@/lib/language-context";
 
 interface CreatePostProps {
   onAddPost?: (newPost: Post) => void;
 }
 
 export function CreatePost({ onAddPost }: CreatePostProps) {
+  const { language, dir } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [content, setContent] = useState("");
   const [selectedTag, setSelectedTag] = useState("PolaVibes");
@@ -55,10 +57,10 @@ export function CreatePost({ onAddPost }: CreatePostProps) {
       setIsSubmitting(false);
       setIsOpen(false);
 
-      // Trigger Toast as specified in task.md
+      // Trigger Toast
       toast.add({
-        title: "ساتەکەت بڵاوکرایەوە! 🚀",
-        description: "بڵاوکراوەکەت ئێستا لەسەر پۆلا بەردەستە.",
+        title: language === "en" ? "Moment published! 🚀" : "ساتەکەت بڵاوکرایەوە! 🚀",
+        description: language === "en" ? "Your moment is now live on Pola." : "بڵاوکراوەکەت ئێستا لەسەر پۆلا بەردەستە.",
         type: "success",
       });
     }, 500);
@@ -77,9 +79,13 @@ export function CreatePost({ onAddPost }: CreatePostProps) {
           />
           <button
             onClick={() => setIsOpen(true)}
-            className="flex-1 rounded-xl border border-border/60 bg-muted/30 px-4 py-2.5 text-right text-xs md:text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground cursor-pointer"
+            className={`flex-1 rounded-xl border border-border/60 bg-muted/30 px-4 py-2.5 ${
+              dir === "rtl" ? "text-right" : "text-left"
+            } text-xs md:text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground cursor-pointer`}
           >
-            بیرۆکەیەک، هەستێک یان ساتێک لە پۆلا دەرببڕە...
+            {language === "en"
+              ? "Share an idea, thought, or spark on Pola..."
+              : "بیرۆکەیەک، هەستێک یان ساتێک لە پۆلا دەرببڕە..."}
           </button>
         </div>
 
@@ -90,7 +96,7 @@ export function CreatePost({ onAddPost }: CreatePostProps) {
               className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors cursor-pointer"
             >
               <ImageIcon className="h-3.5 w-3.5 text-emerald-500" />
-              <span>میدیا</span>
+              <span>{language === "en" ? "Media" : "میدیا"}</span>
             </button>
 
             <button
@@ -98,7 +104,7 @@ export function CreatePost({ onAddPost }: CreatePostProps) {
               className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors cursor-pointer"
             >
               <Mic className="h-3.5 w-3.5 text-rose-500" />
-              <span>تۆماری دەنگی</span>
+              <span>{language === "en" ? "Voice" : "تۆماری دەنگی"}</span>
             </button>
 
             <button
@@ -106,13 +112,13 @@ export function CreatePost({ onAddPost }: CreatePostProps) {
               className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors cursor-pointer"
             >
               <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-              <span>دەنگدانەوە</span>
+              <span>{language === "en" ? "Resonance" : "دەنگدانەوە"}</span>
             </button>
           </div>
 
           <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
             <Radio className="h-3 w-3 text-emerald-500 animate-pulse" />
-            پەخشی گشتی
+            {language === "en" ? "Public Space" : "پەخشی گشتی"}
           </span>
         </div>
       </div>
@@ -126,7 +132,9 @@ export function CreatePost({ onAddPost }: CreatePostProps) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
               transition={{ type: "spring", stiffness: 360, damping: 26 }}
-              className="relative w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-2xl text-right"
+              className={`relative w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-2xl ${
+                dir === "rtl" ? "text-right" : "text-left"
+              }`}
             >
               <div className="flex items-center justify-between border-b border-border/60 pb-3">
                 <div className="flex items-center gap-2">
@@ -134,7 +142,7 @@ export function CreatePost({ onAddPost }: CreatePostProps) {
                     <Sparkles className="h-3.5 w-3.5" />
                   </div>
                   <h3 className="text-sm font-bold text-foreground">
-                    دروستکردنی بڵاوکراوەی نوێ
+                    {language === "en" ? "Create New Moment" : "دروستکردنی بڵاوکراوەی نوێ"}
                   </h3>
                 </div>
                 <button
@@ -159,7 +167,7 @@ export function CreatePost({ onAddPost }: CreatePostProps) {
                   </div>
                   <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                     <Globe2 className="h-3 w-3" />
-                    <span>کۆمەڵگەی گشتی</span>
+                    <span>{language === "en" ? "Public Sphere" : "کۆمەڵگەی گشتی"}</span>
                   </div>
                 </div>
               </div>
@@ -169,9 +177,15 @@ export function CreatePost({ onAddPost }: CreatePostProps) {
                 autoFocus
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                placeholder="ئەمڕۆ چی لە هزرتدا دەزرینگێتەوە؟ ساتەکانت بنووسە..."
+                placeholder={
+                  language === "en"
+                    ? "What inspires you today? Share your moment..."
+                    : "ئەمڕۆ چی لە هزرتدا دەزرینگێتەوە؟ ساتەکانت بنووسە..."
+                }
                 rows={4}
-                className="w-full resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none text-right leading-relaxed"
+                className={`w-full resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none ${
+                  dir === "rtl" ? "text-right" : "text-left"
+                } leading-relaxed`}
               />
 
               {/* Tag Selector */}
@@ -212,7 +226,13 @@ export function CreatePost({ onAddPost }: CreatePostProps) {
                   disabled={!content.trim() || isSubmitting}
                   className="rounded-full px-5 text-xs font-semibold"
                 >
-                  {isSubmitting ? "خەریکی بڵاوکردنەوەیە..." : "بڵاوکردنەوەی ساتەکە"}
+                  {isSubmitting
+                    ? language === "en"
+                      ? "Publishing..."
+                      : "خەریکی بڵاوکردنەوەیە..."
+                    : language === "en"
+                    ? "Publish Moment"
+                    : "بڵاوکردنەوەی ساتەکە"}
                 </Button>
               </div>
             </motion.div>

@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { CURRENT_USER } from "./dummy-data";
 import { Comment, Post } from "./types";
+import { useLanguage } from "@/lib/language-context";
 
 interface PostDialogProps {
   post: Post | null;
@@ -38,9 +39,14 @@ export function PostDialog({
   onAddComment,
   onLikeToggle,
 }: PostDialogProps) {
+  const { language, dir } = useLanguage();
   const [commentText, setCommentText] = useState("");
 
   if (!post) return null;
+
+  const displayContent = language === "en" && post.contentEn ? post.contentEn : post.content;
+  const displayTags = language === "en" && post.tagsEn ? post.tagsEn : post.tags;
+  const displayTimestamp = language === "en" && post.timestampEn ? post.timestampEn : post.timestamp;
 
   const handleCommentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,7 +81,7 @@ export function PostDialog({
                 <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                   <span>{post.author.handle}</span>
                   <span>·</span>
-                  <span>{post.timestamp}</span>
+                  <span>{displayTimestamp}</span>
                   <span>·</span>
                   <Globe2 className="h-3 w-3" />
                 </div>
@@ -85,14 +91,16 @@ export function PostDialog({
         </DialogHeader>
 
         {/* Scrollable Post & Comments Body */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin text-right">
+        <div className={`flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin ${
+          dir === "rtl" ? "text-right" : "text-left"
+        }`}>
           {/* Post Content */}
           <div className="text-sm text-foreground leading-relaxed">
-            <p className="whitespace-pre-line">{post.content}</p>
+            <p className="whitespace-pre-line">{displayContent}</p>
 
-            {post.tags && post.tags.length > 0 && (
+            {displayTags && displayTags.length > 0 && (
               <div className="mt-2.5 flex flex-wrap gap-1.5 justify-start">
-                {post.tags.map((tag) => (
+                {displayTags.map((tag) => (
                   <span
                     key={tag}
                     className="rounded-full bg-muted/60 px-2.5 py-0.5 text-[11px] font-medium text-foreground/80"
@@ -127,24 +135,36 @@ export function PostDialog({
                 }`}
               >
                 <Flame className={`h-4 w-4 ${post.isLiked ? "fill-amber-500" : ""}`} />
-                <span>{post.likesCount} دەنگدانەوە</span>
+                <span>
+                  {language === "en"
+                    ? `${post.likesCount} Resonances`
+                    : `${post.likesCount} دەنگدانەوە`}
+                </span>
               </button>
 
               <div className="flex items-center gap-1 text-muted-foreground px-2">
                 <MessageSquare className="h-4 w-4" />
-                <span>{post.comments.length} لێدوان</span>
+                <span>
+                  {language === "en"
+                    ? `${post.comments.length} Comments`
+                    : `${post.comments.length} لێدوان`}
+                </span>
               </div>
             </div>
 
-            <button className="flex items-center gap-1 text-muted-foreground hover:text-foreground p-1" title="هاوبەشکردن">
+            <button className="flex items-center gap-1 text-muted-foreground hover:text-foreground p-1" title={language === "en" ? "Share" : "هاوبەشکردن"}>
               <Share2 className="h-4 w-4" />
             </button>
           </div>
 
           {/* Comments Thread */}
           <div className="space-y-3 pt-1">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground text-right">
-              لێدوان و وەڵامەکان ({post.comments.length})
+            <h4 className={`text-xs font-bold uppercase tracking-wider text-muted-foreground ${
+              dir === "rtl" ? "text-right" : "text-left"
+            }`}>
+              {language === "en"
+                ? `Comments & Echoes (${post.comments.length})`
+                : `لێدوان و وەڵامەکان (${post.comments.length})`}
             </h4>
 
             {post.comments.length > 0 ? (
@@ -162,11 +182,13 @@ export function PostDialog({
                           {comment.author.name}
                         </span>
                         <span className="text-[10px] text-muted-foreground">
-                          {comment.timestamp}
+                          {language === "en" && comment.timestampEn ? comment.timestampEn : comment.timestamp}
                         </span>
                       </div>
-                      <p className="mt-1 text-foreground/90 leading-relaxed text-right">
-                        {comment.content}
+                      <p className={`mt-1 text-foreground/90 leading-relaxed ${
+                        dir === "rtl" ? "text-right" : "text-left"
+                      }`}>
+                        {language === "en" && comment.contentEn ? comment.contentEn : comment.content}
                       </p>
                     </div>
                   </div>
@@ -174,7 +196,9 @@ export function PostDialog({
               </div>
             ) : (
               <div className="py-6 text-center text-xs text-muted-foreground">
-                هیچ لێدوانێک نییە. یەکەم تێڕوانین تۆ پێشکەش بکە!
+                {language === "en"
+                  ? "No comments yet. Share the first perspective!"
+                  : "هیچ لێدوانێک نییە. یەکەم تێڕوانین تۆ پێشکەش بکە!"}
               </div>
             )}
           </div>
@@ -193,12 +217,20 @@ export function PostDialog({
                 type="text"
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
-                placeholder="وەڵامی ئەم ساتە بدەرەوە..."
-                className="w-full rounded-full border border-border/80 bg-background px-4 py-2 pl-9 text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-primary/40 text-right"
+                placeholder={
+                  language === "en"
+                    ? "Reply to this moment..."
+                    : "وەڵامی ئەم ساتە بدەرەوە..."
+                }
+                className={`w-full rounded-full border border-border/80 bg-background px-4 py-2 ${
+                  dir === "rtl" ? "pl-9 text-right" : "pr-9 text-left"
+                } text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-primary/40`}
               />
               <button
                 type="button"
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className={`absolute ${
+                  dir === "rtl" ? "left-3" : "right-3"
+                } top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground`}
               >
                 <Smile className="h-3.5 w-3.5" />
               </button>
@@ -209,7 +241,7 @@ export function PostDialog({
               disabled={!commentText.trim()}
               className="rounded-full px-3.5 h-8.5 text-xs font-semibold"
             >
-              <Send className="h-3.5 w-3.5 rotate-180" />
+              <Send className={`h-3.5 w-3.5 ${dir === "rtl" ? "rotate-180" : ""}`} />
             </Button>
           </form>
         </div>

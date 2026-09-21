@@ -17,12 +17,14 @@ import {
   Orbit,
   Plus,
   Radio,
+  Settings,
   Share2,
   Sparkles,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/motion/button";
 import { toast } from "@/components/ui/toast";
+import { useLanguage } from "@/lib/language-context";
 import { CreatePost } from "../feed/create-post";
 import { CURRENT_USER_PROFILE } from "../feed/dummy-data";
 import { PostCard } from "../feed/post-card";
@@ -35,6 +37,7 @@ interface ProfilePageProps {
   onAddComment?: (postId: string, commentText: string) => void;
   onOpenDialog?: (post: Post) => void;
   onBackToFeed?: () => void;
+  onOpenSettings?: () => void;
 }
 
 export function ProfilePage({
@@ -44,11 +47,28 @@ export function ProfilePage({
   onAddComment,
   onOpenDialog,
   onBackToFeed,
+  onOpenSettings,
 }: ProfilePageProps) {
+  const { language, dir, t } = useLanguage();
   const [activeTab, setActiveTab] = useState<"posts" | "media" | "spheres">("posts");
   const [bio, setBio] = useState(CURRENT_USER_PROFILE.bio);
   const [isEditingBio, setIsEditingBio] = useState(false);
   const [bioInput, setBioInput] = useState(CURRENT_USER_PROFILE.bio);
+  const [coverPhoto, setCoverPhoto] = useState(CURRENT_USER_PROFILE.coverPhoto);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setCoverPhoto(url);
+      toast.add({
+        title: language === "en" ? "Cover photo updated! 🌄" : "وێنەی بەرگ نوێکرایەوە! 🌄",
+        description: language === "en" ? "Your profile banner has been updated successfully." : "وێنەی بەرگی پڕۆفایلەکەت بە سەرکەوتوویی نوێکرایەوە.",
+        type: "success",
+      });
+    }
+  };
 
   // Filter posts created by the current user ("What I Posted")
   const myPosts = posts.filter(
@@ -76,27 +96,37 @@ export function ProfilePage({
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto pb-16 px-2 sm:px-4 text-right">
-      {/* Cover Photo Header */}
-      <div className="relative w-full rounded-2xl md:rounded-3xl overflow-hidden border border-border/70 shadow-sm bg-muted">
+    <div dir={dir} className={`w-full max-w-5xl mx-auto pb-16 px-2 sm:px-4 ${dir === "rtl" ? "text-right" : "text-left"}`}>
+      {/* Cover Photo Header with Hover to Change */}
+      <div
+        onClick={() => coverInputRef.current?.click()}
+        className="group relative w-full rounded-2xl md:rounded-3xl overflow-hidden border border-border/70 shadow-sm bg-muted cursor-pointer transition-all select-none"
+        title={language === "en" ? "Click to change cover photo" : "کلیک بکە بۆ گۆڕینی وێنەی بەرگ"}
+      >
+        <input
+          ref={coverInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleCoverChange}
+        />
         <div className="relative h-48 sm:h-64 md:h-80 w-full overflow-hidden">
           <img
-            src={CURRENT_USER_PROFILE.coverPhoto}
+            src={coverPhoto}
             alt="Profile Cover"
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
           {/* Subtle gradient vignette */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
-        </div>
 
-        {/* Change Cover Photo Button */}
-        <button
-          type="button"
-          className="absolute left-4 bottom-4 flex items-center gap-1.5 rounded-full border border-white/20 bg-black/60 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-md hover:bg-black/80 transition-all cursor-pointer shadow-md"
-        >
-          <Camera className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">گۆڕینی بەرگ</span>
-        </button>
+          {/* Sleek Dark Hover Overlay with Camera Badge */}
+          <div className="absolute inset-0 bg-black/35 backdrop-blur-[1.5px] opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center pointer-events-none">
+            <div className="flex items-center gap-2 rounded-full border border-white/30 bg-black/65 px-4 py-2 text-xs font-semibold text-white backdrop-blur-md shadow-2xl transform scale-95 group-hover:scale-100 transition-all duration-300">
+              <Camera className="h-4 w-4 text-white" />
+              <span>{language === "en" ? "Change Cover Photo" : "گۆڕینی وێنەی بەرگ"}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Profile Header Details & Avatar */}
@@ -126,7 +156,7 @@ export function ProfilePage({
               className="rounded-full gap-1.5 text-xs font-semibold px-4 h-9 cursor-pointer"
             >
               <Edit3 className="h-3.5 w-3.5" />
-              <span>دەستکاریی پڕۆفایل</span>
+              <span>{t("editProfile")}</span>
             </Button>
 
             <Button
@@ -136,13 +166,26 @@ export function ProfilePage({
               className="rounded-full gap-1.5 text-xs font-semibold px-3.5 h-9 cursor-pointer"
             >
               <Share2 className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">هاوبەشکردن</span>
+              <span className="hidden sm:inline">{t("share")}</span>
             </Button>
+
+            {onOpenSettings && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={onOpenSettings}
+                className="rounded-full gap-1.5 text-xs font-semibold px-3.5 h-9 cursor-pointer"
+                title={t("settings")}
+              >
+                <Settings className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{t("settings")}</span>
+              </Button>
+            )}
           </div>
         </div>
 
         {/* User Identifiers: Safely below the banner in clean normal flow */}
-        <div className="mt-4 space-y-1.5 text-right">
+        <div className={`mt-4 space-y-1.5 ${dir === "rtl" ? "text-right" : "text-left"}`}>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
               {CURRENT_USER_PROFILE.name}
@@ -157,11 +200,11 @@ export function ProfilePage({
             <span>·</span>
             <span className="flex items-center gap-1 text-emerald-500 font-medium text-xs">
               <Radio className="h-3 w-3 animate-pulse shrink-0" />
-              چالاک لە پۆلا
+              {t("activeInPola")}
             </span>
             <span>·</span>
             <span className="text-xs font-medium text-muted-foreground">
-              {CURRENT_USER_PROFILE.role}
+              {language === "en" && CURRENT_USER_PROFILE.roleEn ? CURRENT_USER_PROFILE.roleEn : CURRENT_USER_PROFILE.role}
             </span>
           </div>
         </div>
@@ -174,8 +217,14 @@ export function ProfilePage({
                 value={bioInput}
                 onChange={(e) => setBioInput(e.target.value)}
                 rows={3}
-                className="w-full resize-none bg-transparent text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none text-right"
-                placeholder="دەربارەی خۆت و کارەکانت کەمێک بنووسە..."
+                className={`w-full resize-none bg-transparent text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none ${
+                  dir === "rtl" ? "text-right" : "text-left"
+                }`}
+                placeholder={
+                  language === "en"
+                    ? "Tell the community about yourself and your work..."
+                    : "دەربارەی خۆت و کارەکانت کەمێک بنووسە..."
+                }
               />
               <div className="flex justify-end gap-2">
                 <Button
@@ -184,20 +233,22 @@ export function ProfilePage({
                   onClick={() => setIsEditingBio(false)}
                   className="rounded-full text-xs h-7.5 px-3 cursor-pointer"
                 >
-                  پاشگەزبوونەوە
+                  {language === "en" ? "Cancel" : "پاشگەزبوونەوە"}
                 </Button>
                 <Button
                   size="sm"
                   onClick={handleSaveBio}
                   className="rounded-full text-xs h-7.5 px-3 font-semibold cursor-pointer"
                 >
-                  پاشەکەوتکردن
+                  {language === "en" ? "Save" : "پاشەکەوتکردن"}
                 </Button>
               </div>
             </div>
           ) : (
-            <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed font-normal text-right">
-              {bio}
+            <p className={`text-xs sm:text-sm text-foreground/90 leading-relaxed font-normal ${
+              dir === "rtl" ? "text-right" : "text-left"
+            }`}>
+              {language === "en" && CURRENT_USER_PROFILE.bioEn ? CURRENT_USER_PROFILE.bioEn : bio}
             </p>
           )}
 
@@ -205,11 +256,19 @@ export function ProfilePage({
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
             <div className="flex items-center gap-1.5">
               <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-              <span>{CURRENT_USER_PROFILE.location}</span>
+              <span>
+                {language === "en" && CURRENT_USER_PROFILE.locationEn
+                  ? CURRENT_USER_PROFILE.locationEn
+                  : CURRENT_USER_PROFILE.location}
+              </span>
             </div>
             <div className="flex items-center gap-1.5">
               <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-              <span>بەشداربووە لە {CURRENT_USER_PROFILE.joinedDate}</span>
+              <span>
+                {language === "en" && CURRENT_USER_PROFILE.joinedDateEn
+                  ? `Joined ${CURRENT_USER_PROFILE.joinedDateEn}`
+                  : `بەشداربووە لە ${CURRENT_USER_PROFILE.joinedDate}`}
+              </span>
             </div>
             <a
               href={CURRENT_USER_PROFILE.website}
@@ -231,7 +290,7 @@ export function ProfilePage({
               {myPosts.length}
             </span>
             <span className="text-[11px] font-medium text-muted-foreground">
-              ساتە بڵاوکراوەکان
+              {language === "en" ? "Published Moments" : "ساتە بڵاوکراوەکان"}
             </span>
           </div>
           <div className="flex flex-col items-center sm:items-start px-3 py-1">
@@ -239,7 +298,7 @@ export function ProfilePage({
               {CURRENT_USER_PROFILE.stats.followers}
             </span>
             <span className="text-[11px] font-medium text-muted-foreground">
-              ئەندامانی بازنە
+              {language === "en" ? "Followers" : "ئەندامانی بازنە"}
             </span>
           </div>
           <div className="flex flex-col items-center sm:items-start px-3 py-1">
@@ -247,7 +306,7 @@ export function ProfilePage({
               {CURRENT_USER_PROFILE.stats.following}
             </span>
             <span className="text-[11px] font-medium text-muted-foreground">
-              شوێنکەوتوو
+              {language === "en" ? "Following" : "شوێنکەوتوو"}
             </span>
           </div>
           <div className="flex flex-col items-center sm:items-start px-3 py-1">
@@ -255,7 +314,7 @@ export function ProfilePage({
               {CURRENT_USER_PROFILE.stats.resonanceScore}
             </span>
             <span className="text-[11px] font-medium text-muted-foreground">
-              نمرەی دەنگدانەوە
+              {language === "en" ? "Resonance Score" : "نمرەی دەنگدانەوە"}
             </span>
           </div>
         </div>
@@ -272,7 +331,11 @@ export function ProfilePage({
           }`}
         >
           <Sparkles className="h-4 w-4" />
-          <span>بڵاوکراوەکانم ({myPosts.length})</span>
+          <span>
+            {language === "en"
+              ? `My Moments (${myPosts.length})`
+              : `بڵاوکراوەکانم (${myPosts.length})`}
+          </span>
           {activeTab === "posts" && (
             <div className="absolute bottom-0 left-0 right-0 h-0.75 bg-foreground rounded-full" />
           )}
@@ -287,7 +350,7 @@ export function ProfilePage({
           }`}
         >
           <ImageIcon className="h-4 w-4" />
-          <span>وێنە و بینراوەکان</span>
+          <span>{language === "en" ? "Media & Visuals" : "وێنە و بینراوەکان"}</span>
           {activeTab === "media" && (
             <div className="absolute bottom-0 left-0 right-0 h-0.75 bg-foreground rounded-full" />
           )}
@@ -302,7 +365,7 @@ export function ProfilePage({
           }`}
         >
           <Orbit className="h-4 w-4" />
-          <span>بوار و کۆمەڵگەکان</span>
+          <span>{language === "en" ? "Spheres & Communities" : "بوار و کۆمەڵگەکان"}</span>
           {activeTab === "spheres" && (
             <div className="absolute bottom-0 left-0 right-0 h-0.75 bg-foreground rounded-full" />
           )}
@@ -314,21 +377,27 @@ export function ProfilePage({
         {/* Left Column: Intro & Featured Media Gallery */}
         <div className="space-y-4">
           {/* Intro Card */}
-          <div className="rounded-2xl border border-border/70 bg-card p-4 shadow-xs space-y-3 text-right">
+          <div className={`rounded-2xl border border-border/70 bg-card p-4 shadow-xs space-y-3 ${dir === "rtl" ? "text-right" : "text-left"}`}>
             <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              ناساندنی دروستکەر
+              {language === "en" ? "Creator Profile" : "ناساندنی دروستکەر"}
             </h3>
             <p className="text-xs text-foreground/80 leading-relaxed">
-              دیزاینەری شێوازی کارلێکی شوێنی و ئەندازیاری ڕووکاری بەکارهێنەر لە پۆلا.
+              {language === "en"
+                ? "Spatial interaction designer & UX engineer at Pola."
+                : "دیزاینەری شێوازی کارلێکی شوێنی و ئەندازیاری ڕووکاری بەکارهێنەر لە پۆلا."}
             </p>
             <div className="border-t border-border/50 pt-2.5 space-y-2 text-xs">
               <div className="flex items-center justify-between text-muted-foreground">
-                <span>پلەی دەنگدانەوە</span>
-                <span className="font-semibold text-foreground">لە ٢٪ی دروستکەرە باڵاکان</span>
+                <span>{language === "en" ? "Resonance Rank" : "پلەی دەنگدانەوە"}</span>
+                <span className="font-semibold text-foreground">
+                  {language === "en" ? "Top 2% of Creators" : "لە ٢٪ی دروستکەرە باڵاکان"}
+                </span>
               </div>
               <div className="flex items-center justify-between text-muted-foreground">
-                <span>دۆخی هەژمار</span>
-                <span className="font-semibold text-emerald-500">هاوبەشی پشتڕاستکراو</span>
+                <span>{language === "en" ? "Account Status" : "دۆخی هەژمار"}</span>
+                <span className="font-semibold text-emerald-500">
+                  {language === "en" ? "Verified Partner" : "هاوبەشی پشتڕاستکراو"}
+                </span>
               </div>
             </div>
           </div>
@@ -337,10 +406,10 @@ export function ProfilePage({
           <div className="rounded-2xl border border-border/70 bg-card p-4 shadow-xs space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                پێشانگای هەڵبژێردراو
+                {language === "en" ? "Featured Gallery" : "پێشانگای هەڵبژێردراو"}
               </h3>
               <span className="text-[11px] font-semibold text-primary hover:underline cursor-pointer">
-                هەمووی ببینە
+                {language === "en" ? "See all" : "هەمووی ببینە"}
               </span>
             </div>
             <div className="grid grid-cols-3 gap-2">
@@ -382,10 +451,12 @@ export function ProfilePage({
                 <div className="rounded-2xl border border-border/70 bg-card p-8 text-center space-y-2">
                   <Sparkles className="h-8 w-8 text-muted-foreground mx-auto" />
                   <h4 className="text-sm font-bold text-foreground">
-                    هیچ ساتێک بڵاونەکراوەتەوە
+                    {language === "en" ? "No moments shared yet" : "هیچ ساتێک بڵاونەکراوەتەوە"}
                   </h4>
                   <p className="text-xs text-muted-foreground">
-                    یەکەم سات یان بیروڕای خۆت لەگەڵ بازنەی پۆلا بەش بکە!
+                    {language === "en"
+                      ? "Share your first moment with the Pola community!"
+                      : "یەکەم سات یان بیروڕای خۆت لەگەڵ بازنەی پۆلا بەش بکە!"}
                   </p>
                 </div>
               )}
@@ -414,14 +485,31 @@ export function ProfilePage({
           {activeTab === "spheres" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {[
-                { name: "جووڵە و ڕووکاری زیرەک", role: "دامەزرێنەری هاوبەش", count: "٢٤.٦ هەزار دەنگدانەوە" },
-                { name: "تەلارسازی شوێنی", role: "بەشداربوو", count: "١٢.٨ هەزار دەنگدانەوە" },
-                { name: "داهێنەرە سەربەخۆکان", role: "ئەندام", count: "٣١.٢ هەزار دەنگدانەوە" },
-                { name: "دیزاینی بەرهەمی سادە", role: "ئەندام", count: "١٩.٤ هەزار دەنگدانەوە" },
+                {
+                  name:    language === "en" ? "Motion & Smart UI" : "جووڵە و ڕووکاری زیرەک",
+                  nameEn:  "Motion & Smart UI",
+                  role:    language === "en" ? "Co-founder" : "دامەزرێنەری هاوبەش",
+                  count:   language === "en" ? "24.6K sparks" : "٢٤.٦ هەزار دەنگدانەوە",
+                },
+                {
+                  name:    language === "en" ? "Spatial Architecture" : "تەلارسازی شوێنی",
+                  role:    language === "en" ? "Contributor" : "بەشداربوو",
+                  count:   language === "en" ? "12.8K sparks" : "١٢.٨ هەزار دەنگدانەوە",
+                },
+                {
+                  name:    language === "en" ? "Independent Innovators" : "داهێنەرە سەربەخۆکان",
+                  role:    language === "en" ? "Member" : "ئەندام",
+                  count:   language === "en" ? "31.2K sparks" : "٣١.٢ هەزار دەنگدانەوە",
+                },
+                {
+                  name:    language === "en" ? "Minimal Product Design" : "دیزاینی بەرهەمی سادە",
+                  role:    language === "en" ? "Member" : "ئەندام",
+                  count:   language === "en" ? "19.4K sparks" : "١٩.٤ هەزار دەنگدانەوە",
+                },
               ].map((sphere, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center gap-3 rounded-2xl border border-border/70 bg-card p-3.5 shadow-xs hover:border-border transition-all text-right"
+                  className={`flex items-center gap-3 rounded-2xl border border-border/70 bg-card p-3.5 shadow-xs hover:border-border transition-all ${dir === "rtl" ? "text-right" : "text-left"}`}
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary font-mono text-sm font-bold">
                     ✦

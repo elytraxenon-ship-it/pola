@@ -4,8 +4,10 @@ import { ChevronLeft, Plus, Sparkles } from "lucide-react";
 import { motion } from "motion/react";
 import { useRef } from "react";
 import { CURRENT_USER, DUMMY_STORIES } from "./dummy-data";
+import { useLanguage } from "@/lib/language-context";
 
 export function StoriesReel() {
+  const { language } = useLanguage();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const scrollLeft = () => {
@@ -19,10 +21,10 @@ export function StoriesReel() {
       <div className="flex items-center justify-between px-1 pb-2.5">
         <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
           <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-          <span>لێدانی ڕاستەوخۆ و ساتەکان</span>
+          <span>{language === "en" ? "Live Stories & Pulses" : "لێدانی ڕاستەوخۆ و ساتەکان"}</span>
         </div>
         <span className="text-[11px] font-medium text-muted-foreground">
-          دوای ٢٤ کاتژمێر نامێنێت
+          {language === "en" ? "Expires in 24h" : "دوای ٢٤ کاتژمێر نامێنێت"}
         </span>
       </div>
 
@@ -49,13 +51,13 @@ export function StoriesReel() {
             {/* Plus Action Button */}
             <div
               className="absolute bottom-0.5 right-0.5 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-card shadow-xs transition-transform duration-200 group-hover:scale-110"
-              title="زیادکردنی سات"
+              title={language === "en" ? "Add Story" : "زیادکردنی سات"}
             >
               <Plus className="size-3.5 stroke-[3]" />
             </div>
           </div>
           <span className="text-[11px] font-medium text-foreground text-center group-hover:text-primary transition-colors">
-            لێدانی تۆ
+            {language === "en" ? "Your Story" : "لێدانی تۆ"}
           </span>
         </div>
 

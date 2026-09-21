@@ -7,9 +7,11 @@ import {
   Globe2,
   LogOut,
   MessageSquare,
+  Orbit,
   Plus,
   Radio,
   Search,
+  Settings,
   Sparkles,
   User as UserIcon,
 } from "lucide-react";
@@ -22,6 +24,7 @@ import { MessagesPopover } from "./messages-popover";
 import { NotificationsPopover } from "./notifications-popover";
 import { SearchDropdown } from "./search-dropdown";
 import { User } from "./types";
+import { useLanguage } from "@/lib/language-context";
 
 interface NavbarProps {
   activeTab?: string;
@@ -30,6 +33,7 @@ interface NavbarProps {
   onOpenCreateModal?: () => void;
   onOpenChat?: () => void;
   onViewProfile?: () => void;
+  onOpenSettings?: () => void;
   onViewNotifications?: () => void;
   onViewMessages?: () => void;
   onSelectChatContact?: (contact: User) => void;
@@ -42,10 +46,12 @@ export function Navbar({
   onOpenCreateModal,
   onOpenChat,
   onViewProfile,
+  onOpenSettings,
   onViewNotifications,
   onViewMessages,
   onSelectChatContact,
 }: NavbarProps) {
+  const { language, dir, t } = useLanguage();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
@@ -57,30 +63,27 @@ export function Navbar({
   }, []);
 
   const channels = [
-    { id: "pulse", label: "لێدان", icon: Flame },
-    { id: "foryou", label: "بۆ تۆ", icon: Sparkles },
-    { id: "following", label: "بازنەکان", icon: Globe2 },
-    { id: "spaces", label: "بوارەکان", icon: Radio },
+    { id: "pulse", label: language === "en" ? "Pulse" : "لێدان", icon: Flame },
+    { id: "foryou", label: language === "en" ? "For You" : "بۆ تۆ", icon: Sparkles },
+    { id: "following", label: language === "en" ? "Spheres" : "بازنەکان", icon: Globe2 },
+    { id: "spaces", label: language === "en" ? "Spaces" : "بوارەکان", icon: Radio },
   ];
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-border/70 bg-background/80 px-4 py-2.5 backdrop-blur-xl">
+    <header dir={dir} className="sticky top-0 z-40 w-full border-b border-border/70 bg-background/80 px-4 py-2.5 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
         {/* Right (in RTL): Distinctive Pola Brand & Search */}
         <div className="flex items-center gap-3 md:gap-5">
-          <div className="flex items-center gap-2.5 group cursor-pointer">
-            <div className="relative flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-tr from-neutral-900 via-neutral-800 to-neutral-700 text-white font-black text-sm tracking-widest shadow-md ring-1 ring-white/10 dark:from-white dark:via-neutral-100 dark:to-neutral-300 dark:text-neutral-950">
-              P
-              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-background" />
+          <div
+            onClick={() => onTabChange?.("pulse")}
+            className="flex items-center gap-2.5 group cursor-pointer"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-tr from-purple-600 via-primary to-indigo-500 text-white shadow-md shadow-primary/25 transition-all duration-300 group-hover:scale-105 group-hover:rotate-6">
+              <Orbit className="size-5 transition-transform duration-300 group-hover:rotate-45" />
             </div>
-            <div className="flex flex-col">
-              <span className="text-base font-extrabold tracking-tight text-foreground leading-none">
-                POLA
-              </span>
-              <span className="text-[10px] font-medium text-muted-foreground tracking-wider">
-                تۆڕی کۆمەڵایەتی
-              </span>
-            </div>
+            <span className="text-xl font-black tracking-tight text-foreground leading-none font-sans">
+              POLA
+            </span>
           </div>
 
           {/* Facebook-style In-place Search Dropdown */}
@@ -126,7 +129,7 @@ export function Navbar({
             className="rounded-full gap-1.5 bg-foreground text-background hover:opacity-90 shadow-sm text-xs font-semibold px-3.5 h-8.5 cursor-pointer"
           >
             <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">ساتێک</span>
+            <span className="hidden sm:inline">{t("newMoment")}</span>
           </Button>
 
           <div className="relative">
@@ -140,7 +143,7 @@ export function Navbar({
                   ? "border-primary/60 text-primary bg-primary/10"
                   : "border-border/70 text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
-              title="ئاگادارکردنەوەکان"
+              title={language === "en" ? "Notifications" : "ئاگادارکردنەوەکان"}
             >
               <Bell className="h-4 w-4" />
             </button>
@@ -181,7 +184,7 @@ export function Navbar({
                   ? "border-primary/60 text-primary bg-primary/10"
                   : "border-border/70 bg-card hover:bg-muted text-muted-foreground hover:text-foreground"
               }`}
-              title="وتووێژ و نامەکان"
+              title={language === "en" ? "Messages" : "وتووێژ و نامەکان"}
             >
               <MessageSquare className="h-4 w-4" />
             </button>
@@ -215,7 +218,7 @@ export function Navbar({
           </div>
 
           {/* Pola Avatar10 Component */}
-          <div className="relative ml-1">
+          <div className={`relative ${dir === "rtl" ? "mr-1" : "ml-1"}`}>
             <button
               onClick={() => setShowProfileMenu((prev) => !prev)}
               className="flex items-center rounded-full focus:outline-none cursor-pointer"
@@ -232,7 +235,9 @@ export function Navbar({
               <motion.div
                 initial={{ opacity: 0, scale: 0.95, y: 8 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                className="absolute left-0 mt-2.5 w-60 rounded-2xl border border-border bg-card/95 p-2 shadow-2xl backdrop-blur-xl z-50 text-card-foreground text-right"
+                className={`absolute ${
+                  dir === "rtl" ? "left-0 text-right" : "right-0 text-left"
+                } mt-2.5 w-60 rounded-2xl border border-border bg-card/95 p-2 shadow-2xl backdrop-blur-xl z-50 text-card-foreground`}
               >
                 <div className="flex items-center gap-3 p-2.5 border-b border-border/60">
                   <Avatar10
@@ -244,8 +249,8 @@ export function Navbar({
                     <div className="font-bold text-xs text-foreground truncate">
                       {CURRENT_USER.name}
                     </div>
-                    <div className="text-[11px] text-muted-foreground truncate" dir="ltr">
-                      {CURRENT_USER.handle}
+                    <div className={`text-[11px] text-muted-foreground truncate ${dir === "rtl" ? "text-right" : "text-left"}`}>
+                      <span dir="ltr">{CURRENT_USER.handle}</span>
                     </div>
                   </div>
                 </div>
@@ -259,7 +264,18 @@ export function Navbar({
                     className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer"
                   >
                     <UserIcon className="h-3.5 w-3.5 text-primary" />
-                    <span>بینینی پڕۆفایل</span>
+                    <span>{t("viewProfile")}</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowProfileMenu(false);
+                      onOpenSettings?.();
+                    }}
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer"
+                  >
+                    <Settings className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span>{t("settings")}</span>
                   </button>
 
                   <button
@@ -270,7 +286,7 @@ export function Navbar({
                     className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
                   >
                     <LogOut className="h-3.5 w-3.5" />
-                    <span>چوونەدەرەوە</span>
+                    <span>{t("logout")}</span>
                   </button>
                 </div>
               </motion.div>

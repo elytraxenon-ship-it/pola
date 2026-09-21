@@ -8,40 +8,61 @@ import {
   Mic,
   Orbit,
   Radio,
+  Settings,
   Sparkles,
 } from "lucide-react";
 import { Avatar10 } from "@/components/motion/avatar";
 import { CURRENT_USER } from "./dummy-data";
+import { useLanguage } from "@/lib/language-context";
 
 interface LeftSidebarProps {
   activeSection?: string;
   onSelectSection?: (section: string) => void;
   onViewProfile?: () => void;
+  onOpenSettings?: () => void;
 }
 
 export function LeftSidebar({
   activeSection = "pulse",
   onSelectSection,
   onViewProfile,
+  onOpenSettings,
 }: LeftSidebarProps) {
+  const { language, dir, t } = useLanguage();
+
   const channels = [
-    { id: "pulse", label: "دەریای ساتەکان", icon: Flame, badge: "ڕاستەوخۆ", color: "text-amber-500" },
-    { id: "foryou", label: "هەڵبژێردراو بۆ تۆ", icon: Sparkles, color: "text-purple-500" },
-    { id: "spheres", label: "بواری دروستکەران", icon: Orbit, badge: "١٢", color: "text-cyan-500" },
-    { id: "lounges", label: "ژوورە دەنگییەکان", icon: Mic, color: "text-rose-500" },
-    { id: "archive", label: "پاشەکەوتکراوەکان", icon: Bookmark, color: "text-emerald-500" },
-    { id: "global", label: "ڕاداری جیهانی", icon: Globe2, color: "text-blue-500" },
-    { id: "stats", label: "کاریگەریی تۆ", icon: BarChart3, color: "text-orange-500" },
+    { id: "pulse", label: t("feed"), icon: Flame, badge: language === "en" ? "Live" : "ڕاستەوخۆ", color: "text-amber-500" },
+    { id: "foryou", label: t("forYou"), icon: Sparkles, color: "text-purple-500" },
+    { id: "spheres", label: t("spheres"), icon: Orbit, badge: "12", color: "text-cyan-500" },
+    { id: "lounges", label: t("lounges"), icon: Mic, color: "text-rose-500" },
+    { id: "archive", label: t("archive"), icon: Bookmark, color: "text-emerald-500" },
+    { id: "global", label: t("global"), icon: Globe2, color: "text-blue-500" },
+    { id: "stats", label: t("stats"), icon: BarChart3, color: "text-orange-500" },
+    { id: "settings", label: t("settings"), icon: Settings, color: "text-zinc-500" },
   ];
 
   const spheres = [
-    { id: "sp-1", name: "جووڵە و ڕووکاری زیرەک", count: "٢٤.٦ هەزار دەنگدانەوە" },
-    { id: "sp-2", name: "تەلارسازی سادەگەری", count: "١٢.٨ هەزار دەنگدانەوە" },
-    { id: "sp-3", name: "داهێنەرە سەربەخۆکان", count: "٣١.٢ هەزار دەنگدانەوە" },
+    {
+      id: "sp-1",
+      name: language === "en" ? "Motion & Smart UI" : "جووڵە و ڕووکاری زیرەک",
+      count: language === "en" ? "24.6K interactions" : "٢٤.٦ هەزار دەنگدانەوە",
+    },
+    {
+      id: "sp-2",
+      name: language === "en" ? "Minimalist Architecture" : "تەلارسازی سادەگەری",
+      count: language === "en" ? "12.8K interactions" : "١٢.٨ هەزار دەنگدانەوە",
+    },
+    {
+      id: "sp-3",
+      name: language === "en" ? "Indie Creators" : "داهێنەرە سەربەخۆکان",
+      count: language === "en" ? "31.2K interactions" : "٣١.٢ هەزار دەنگدانەوە",
+    },
   ];
 
   return (
-    <aside className="sticky top-14 hidden lg:flex h-[calc(100vh-3.5rem)] w-68 flex-col gap-4 overflow-y-auto p-3 scrollbar-thin text-right">
+    <aside dir={dir} className={`sticky top-14 hidden lg:flex h-[calc(100vh-3.5rem)] w-68 flex-col gap-4 overflow-y-auto p-3 scrollbar-thin ${
+      dir === "rtl" ? "text-right" : "text-left"
+    }`}>
       {/* Profile Pill Card with Avatar10 */}
       <div
         onClick={onViewProfile}
@@ -57,12 +78,12 @@ export function LeftSidebar({
           <div className="font-bold text-xs text-foreground truncate">
             {CURRENT_USER.name}
           </div>
-          <div dir="ltr" className="text-[11px] text-muted-foreground truncate font-sans text-right">
-            {CURRENT_USER.handle}
+          <div className={`text-[11px] text-muted-foreground truncate font-sans ${dir === "rtl" ? "text-right" : "text-left"}`}>
+            <span dir="ltr">{CURRENT_USER.handle}</span>
           </div>
           <div className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold text-emerald-500">
             <Radio className="h-2.5 w-2.5" />
-            <span>چالاک لە پۆلا</span>
+            <span>{t("activeInPola")}</span>
           </div>
         </div>
       </div>
@@ -75,7 +96,13 @@ export function LeftSidebar({
           return (
             <button
               key={ch.id}
-              onClick={() => onSelectSection?.(ch.id)}
+              onClick={() => {
+                if (ch.id === "settings" && onOpenSettings) {
+                  onOpenSettings();
+                } else {
+                  onSelectSection?.(ch.id);
+                }
+              }}
               className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition-all cursor-pointer ${
                 isActive
                   ? "bg-foreground text-background font-bold shadow-xs"
@@ -130,9 +157,8 @@ export function LeftSidebar({
       </div>
 
       {/* Footer */}
-      <div className="mt-auto px-2 pt-3 text-[10px] text-muted-foreground/70 space-y-0.5">
-        <p>POLA · تۆڕی کۆمەڵایەتیی نەوەی نوێ</p>
-        <p className="text-muted-foreground/50">دیزاین کراوە بۆ دروستکەرانی هۆشیار</p>
+      <div className="mt-auto px-2 pt-3 text-[10px] text-muted-foreground/60">
+        <p>{t("footerTagline")}</p>
       </div>
     </aside>
   );

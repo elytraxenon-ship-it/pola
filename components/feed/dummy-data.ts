@@ -3,9 +3,13 @@ import { Conversation, FriendRequest, Post, Story, TrendingTopic, User } from ".
 export interface UserProfile extends User {
   coverPhoto: string;
   bio: string;
+  bioEn?: string;
   location: string;
+  locationEn?: string;
   role: string;
+  roleEn?: string;
   joinedDate: string;
+  joinedDateEn?: string;
   website: string;
   stats: {
     posts: number;
@@ -29,9 +33,13 @@ export const CURRENT_USER_PROFILE: UserProfile = {
   ...CURRENT_USER,
   coverPhoto: "https://images.unsplash.com/photo-1707343843437-caacff5cfa74?auto=format&fit=crop&w=1600&q=80",
   bio: "ئەندازیاری ڕووکار و دیزاینەری ئەزموونی بەکارهێنەر لە پۆلا ✦ بەدواداچوون بۆ ڕووکاری شوێنی و جووڵەی نەرم لە دروستکردنی تۆڕە کۆمەڵایەتییەکاندا ✨",
+  bioEn: "Interface Architect & UX Designer at Pola ✦ Exploring spatial surfaces and fluid micro-interactions for the next wave of social connection ✨",
   location: "سلێمانی، كوردستان",
+  locationEn: "Sulaymaniyah, Kurdistan",
   role: "سەرپەرشتیاری تەلارسازی ڕووکار",
+  roleEn: "Lead Interface Architect",
   joinedDate: "شوباتی ٢٠٢٦",
+  joinedDateEn: "February 2026",
   website: "https://pola.network/alex",
   stats: {
     posts: 18,
@@ -92,9 +100,12 @@ export const INITIAL_POSTS: Post[] = [
     id: "post-alex-1",
     author: CURRENT_USER,
     timestamp: "٢ کاتژمێر لەمەوبەر",
+    timestampEn: "2 hours ago",
     privacy: "public",
     content: "ئەمڕۆ لە پۆلا سەرقاڵی تاقیکردنەوەی تەلارسازی نوێی جووڵە و ڕەهەندەکانی ڕووکار بووین. کاتێک گۆڕانکاریی شاشەکان هێندەی جووڵەی فیزیکی نەرم و سروشتی دەبن، پەیوەندییە دیجیتاڵییەکان چێژبەخشتر دەبن. تۆ چی تایبەتمەندییەک لە تۆڕەکانی نوێدا بە دڵتە؟ ✦ #دیزاینی_پۆلا #ڕووکاری_نوێ #تاقیگەی_داهێنان",
+    contentEn: "Today at Pola we've been experimenting with the new spatial motion architecture and fluid interface dimensions. When screen transitions feel as tangible and natural as physical gestures, digital connection becomes genuinely delightful. What features are you most excited about? ✦ #PolaDesign #NewUI #InnovationLab",
     tags: ["دیزاینی_پۆلا", "ڕووکاری_نوێ", "تاقیگەی_داهێنان"],
+    tagsEn: ["PolaDesign", "NewUI", "InnovationLab"],
     mediaUrl: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1200&q=80",
     likesCount: 684,
     commentsCount: 42,
@@ -111,7 +122,9 @@ export const INITIAL_POSTS: Post[] = [
           avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=200&q=80",
         },
         content: "نەرمی جووڵە و کاردانەوەی کارتەکان بێ وێنەیە، هەستێکی زۆر زیندوو دەبەخشێت!",
+        contentEn: "The fluid motion and tactile responsiveness are truly unparalleled—feels remarkably alive!",
         timestamp: "١ کاتژمێر لەمەوبەر",
+        timestampEn: "1 hour ago",
         likes: 8,
       },
     ],
@@ -127,10 +140,14 @@ export const INITIAL_POSTS: Post[] = [
       online: true,
     },
     timestamp: "١٨ خولەک لەمەوبەر",
+    timestampEn: "18 mins ago",
     privacy: "public",
     content:
       "دروستکردنی نەوەی نوێی کایە کۆمەڵایەتییەکان لە پۆلا ✨ شێوازی کۆنی ڕیزبەندی ئەلگۆریتممان گۆڕی بۆ دەنگدانەوەی بەرز و بینینی ساتە ڕاستەقینەکان. تێڕوانینت بۆ ئەم شێوازە نوێیە چییە؟",
+    contentEn:
+      "Crafting the next era of social spheres at Pola ✨ We replaced stale feed algorithms with genuine resonance and authentic live moments. How does this experience feel to you?",
     tags: ["کایەکانی_پۆلا", "سیستەمی_دیزاین", "کارلێکی_ورد"],
+    tagsEn: ["PolaSpheres", "DesignSystem", "MicroInteractions"],
     mediaUrl:
       "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80",
     likesCount: 524,
@@ -148,7 +165,9 @@ export const INITIAL_POSTS: Post[] = [
           avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
         },
         content: "جیاوازی بەرزبوونەوەی کارتەکان و فۆنتەکە زۆر لە تۆڕەکانی پێشوو سەرنجڕاکێشترە.",
+        contentEn: "The card depth elevations and typography are leagues ahead of older platforms.",
         timestamp: "١٢ خولەک لەمەوبەر",
+        timestampEn: "12 mins ago",
         likes: 9,
       },
       {
@@ -160,7 +179,9 @@ export const INITIAL_POSTS: Post[] = [
           avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80",
         },
         content: "شێوازی شووشەیی دۆخی تاریک و خێرایی وەڵامدانەوەکەی ناوازەیە. سەرکەوتووبن!",
+        contentEn: "The dark glassmorphism and lightning-fast reactivity are stunning. Great work!",
         timestamp: "٥ خولەک لەمەوبەر",
+        timestampEn: "5 mins ago",
         likes: 4,
       },
     ],
@@ -176,10 +197,14 @@ export const INITIAL_POSTS: Post[] = [
       online: true,
     },
     timestamp: "١ کاتژمێر لەمەوبەر",
+    timestampEn: "1 hour ago",
     privacy: "public",
     content:
       "هەڵاتنی خۆر بەسەر دارستانە تەمگرتووەکاندا. هەندێک جار دوورکەوتنەوە لە جەنجاڵی دیجیتاڵی، گەورەترین چەخماخەی داهێنان دادەگیرسێنێت. وێنەیەکە بە کامێرای فیلمی ٣٥ملم. 🌲🏔️",
+    contentEn:
+      "Sunrise breaking over mist-covered pine valleys. Sometimes unplugging from the digital noise sparks the purest creative inspiration. Shot on 35mm film. 🌲🏔️",
     tags: ["یاداشتنامە", "سادەیی", "ساتەکان"],
+    tagsEn: ["Journal", "Simplicity", "Moments"],
     mediaUrl:
       "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80",
     likesCount: 1420,
@@ -197,7 +222,9 @@ export const INITIAL_POSTS: Post[] = [
           avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
         },
         content: "ڕووناکییە زێڕینە سروشتییەکە بێ وێنەیە! دەستخۆش بۆ ئەم ساتە ناوازەیە.",
+        contentEn: "The natural golden glow here is breathtaking! Thank you for sharing this peace.",
         timestamp: "٤٥ خولەک لەمەوبەر",
+        timestampEn: "45 mins ago",
         likes: 15,
       },
     ],
@@ -213,10 +240,14 @@ export const INITIAL_POSTS: Post[] = [
       online: false,
     },
     timestamp: "٤ کاتژمێر لەمەوبەر",
+    timestampEn: "4 hours ago",
     privacy: "public",
     content:
       "ناساندنی 'دەنگدانەوە' لە پۆلا: لە جیاتی گەڕانی بێزارکەر، کۆمەڵگەکان دەتوانن لە تابلۆی بیرۆکە هاوبەشەکان، ژوورە دەنگییە ڕاستەوخۆکان و یاداشتە کورتەکان بەشدار بن. چ پێشنیارێکت هەیە؟",
+    contentEn:
+      "Introducing 'Resonance' on Pola: Instead of addictive feeds, communities can gather around live audio lounges, shared thought boards, and transient pulses. What would you like to see next?",
     tags: ["کۆمەڵگەی_پۆلا", "داهاتووی_تۆڕەکان"],
+    tagsEn: ["PolaCommunity", "FutureOfSocial"],
     likesCount: 980,
     commentsCount: 164,
     sharesCount: 112,

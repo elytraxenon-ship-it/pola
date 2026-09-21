@@ -11,7 +11,9 @@ export interface Comment {
   id: string;
   author: User;
   content: string;
+  contentEn?: string;
   timestamp: string;
+  timestampEn?: string;
   likes: number;
   isLiked?: boolean;
 }
@@ -20,9 +22,12 @@ export interface Post {
   id: string;
   author: User;
   timestamp: string;
+  timestampEn?: string;
   privacy: "public" | "friends" | "only_me";
   content: string;
+  contentEn?: string;
   tags?: string[];
+  tagsEn?: string[];
   mediaUrl?: string;
   likesCount: number;
   commentsCount: number;
@@ -30,6 +35,7 @@ export interface Post {
   isLiked?: boolean;
   isSaved?: boolean;
   comments: Comment[];
+  commentsEn?: Comment[];
 }
 
 export interface Story {

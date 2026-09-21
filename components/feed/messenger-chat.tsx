@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/message";
 import { CURRENT_USER } from "./dummy-data";
 import { User } from "./types";
+import { useLanguage } from "@/lib/language-context";
 
 interface ChatMessage {
   id: string;
@@ -34,6 +35,7 @@ export function MessengerChat({
   isOpen,
   onClose,
 }: MessengerChatProps) {
+  const { language, dir } = useLanguage();
   const [inputText, setInputText] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -88,7 +90,9 @@ export function MessengerChat({
   };
 
   return (
-    <div className="fixed bottom-4 left-6 z-50 flex w-84 flex-col rounded-2xl border border-border/80 bg-card shadow-2xl overflow-hidden backdrop-blur-xl animate-in slide-in-from-bottom-5 duration-200 text-right">
+    <div className={`fixed bottom-4 ${
+      dir === "rtl" ? "left-6 text-right" : "right-6 text-left"
+    } z-50 flex w-84 flex-col rounded-2xl border border-border/80 bg-card shadow-2xl overflow-hidden backdrop-blur-xl animate-in slide-in-from-bottom-5 duration-200`} dir={dir}>
       {/* Messenger Header */}
       <div className="flex items-center justify-between border-b border-border/60 bg-muted/40 px-3.5 py-2.5">
         <div className="flex items-center gap-2.5">
@@ -103,7 +107,7 @@ export function MessengerChat({
               {contact.name}
             </div>
             <div className="text-[10px] text-emerald-500 font-medium">
-              چالاک لە پۆلا
+              {language === "en" ? "Active in Pola" : "چالاک لە پۆلا"}
             </div>
           </div>
         </div>
@@ -112,7 +116,7 @@ export function MessengerChat({
           <button
             onClick={onClose}
             className="rounded-full p-1 hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-            title="داخستن"
+            title={language === "en" ? "Close" : "داخستن"}
           >
             <X className="h-4 w-4" />
           </button>
@@ -171,12 +175,16 @@ export function MessengerChat({
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder="پەیامێک بنووسە..."
-            className="w-full rounded-full border border-border/80 bg-background px-3 py-1.5 pl-8 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/40 text-right"
+            placeholder={language === "en" ? "Type a message..." : "پەیامێک بنووسە..."}
+            className={`w-full rounded-full border border-border/80 bg-background px-3 py-1.5 ${
+              dir === "rtl" ? "pl-8 text-right" : "pr-8 text-left"
+            } text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/40`}
           />
           <button
             type="button"
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+            className={`absolute ${
+              dir === "rtl" ? "left-2.5" : "right-2.5"
+            } top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer`}
           >
             <Smile className="h-3.5 w-3.5" />
           </button>
@@ -187,7 +195,7 @@ export function MessengerChat({
           disabled={!inputText.trim()}
           className="rounded-full h-7 px-2.5 text-xs font-semibold cursor-pointer"
         >
-          <Send className="h-3 w-3 rotate-180" />
+          <Send className={`h-3 w-3 ${dir === "rtl" ? "rotate-180" : ""}`} />
         </Button>
       </form>
     </div>
