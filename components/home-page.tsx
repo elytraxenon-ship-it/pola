@@ -157,26 +157,27 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
 
   // Handler for adding a comment to a specific post
   const handleAddComment = (postId: string, commentText: string) => {
+    const tempCommentId = `c-${Date.now()}`;
+    const newComment = {
+      id: tempCommentId,
+      author: {
+        id: currentUser.id,
+        name: currentUser.name,
+        handle: currentUser.handle,
+        avatar: currentUser.avatar,
+      },
+      content: commentText,
+      timestamp: "کەمێک لەمەوبەر",
+      likes: 0,
+    };
+
     setPosts((prev) =>
       prev.map((post) => {
         if (post.id === postId) {
-          const newComment = {
-            id: `c-${Date.now()}`,
-            author: {
-              id: currentUser.id,
-              name: currentUser.name,
-              handle: currentUser.handle,
-              avatar: currentUser.avatar,
-            },
-            content: commentText,
-            timestamp: "کەمێک لەمەوبەر",
-            likes: 0,
-          };
-
           const updatedPost = {
             ...post,
-            commentsCount: post.commentsCount + 1,
-            comments: [...post.comments, newComment],
+            commentsCount: (post.commentsCount || 0) + 1,
+            comments: [...(post.comments || []), newComment],
           };
 
           if (selectedPostForDialog?.id === postId) {
@@ -188,6 +189,34 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
         return post;
       })
     );
+
+    // Call API to persist comment
+    fetch(`/api/posts/${postId}/comments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: commentText }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.comment) {
+          setPosts((prev) =>
+            prev.map((post) => {
+              if (post.id === postId) {
+                const updatedComments = (post.comments || []).map((c) =>
+                  c.id === tempCommentId ? data.comment : c
+                );
+                return {
+                  ...post,
+                  comments: updatedComments,
+                  commentsCount: data.commentsCount ?? post.commentsCount,
+                };
+              }
+              return post;
+            })
+          );
+        }
+      })
+      .catch((err) => console.error("Error posting comment:", err));
   };
 
   // Handler for like toggle
@@ -196,7 +225,9 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
       prev.map((post) => {
         if (post.id === postId) {
           const isLiked = !post.isLiked;
-          const likesCount = isLiked ? post.likesCount + 1 : post.likesCount - 1;
+          const likesCount = isLiked
+            ? (post.likesCount || 0) + 1
+            : Math.max(0, (post.likesCount || 1) - 1);
           const updated = { ...post, isLiked, likesCount };
           if (selectedPostForDialog?.id === postId) {
             setSelectedPostForDialog(updated);
@@ -205,6 +236,37 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
         }
         return post;
       })
+    );
+
+    // Call API to persist like/unlike
+    fetch(`/api/posts/${postId}/like`, { method: "POST" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setPosts((prev) =>
+            prev.map((post) =>
+              post.id === postId
+                ? {
+                    ...post,
+                    isLiked: data.isLiked,
+                    likesCount: data.likesCount,
+                  }
+                : post
+            )
+          );
+        }
+      })
+      .catch((err) => console.error("Error toggling like:", err));
+  };
+
+  // Handler for repost
+  const handleRepost = (postId: string) => {
+    setPosts((prev) =>
+      prev.map((post) =>
+        post.id === postId
+          ? { ...post, sharesCount: (post.sharesCount || 0) + 1 }
+          : post
+      )
     );
   };
 
@@ -388,6 +450,7 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
                       setSelectedPostForDialog(p);
                       setIsPostDialogOpen(true);
                     }}
+                    onRepost={handleRepost}
                   />
                 ))
               )}

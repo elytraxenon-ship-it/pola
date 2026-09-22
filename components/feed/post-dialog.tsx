@@ -23,6 +23,7 @@ import {
 import { CURRENT_USER } from "./dummy-data";
 import { Comment, Post } from "./types";
 import { useLanguage } from "@/lib/language-context";
+import { toast } from "@/components/ui/toast";
 
 interface PostDialogProps {
   post: Post | null;
@@ -43,6 +44,20 @@ export function PostDialog({
   const [commentText, setCommentText] = useState("");
 
   if (!post) return null;
+
+  const handleShare = async () => {
+    const url = `${window.location.origin}/?page=post&id=${post.id}`;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      }
+    } catch {}
+    toast.add({
+      title: "بەستەری پۆست کۆپیکرا! 🔗",
+      description: url,
+      type: "success",
+    });
+  };
 
   const displayContent = language === "en" && post.contentEn ? post.contentEn : post.content;
   const displayTags = language === "en" && post.tagsEn ? post.tagsEn : post.tags;
@@ -152,7 +167,11 @@ export function PostDialog({
               </div>
             </div>
 
-            <button className="flex items-center gap-1 text-muted-foreground hover:text-foreground p-1" title={language === "en" ? "Share" : "هاوبەشکردن"}>
+            <button
+              onClick={handleShare}
+              className="flex items-center gap-1 text-muted-foreground hover:text-foreground p-1 transition-colors cursor-pointer"
+              title={language === "en" ? "Share" : "هاوبەشکردن"}
+            >
               <Share2 className="h-4 w-4" />
             </button>
           </div>

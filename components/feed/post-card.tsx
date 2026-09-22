@@ -71,6 +71,7 @@ export function PostCard({
   // Share copied state
   const [isCopied, setIsCopied] = useState(false);
   const [isCopiedInMenu, setIsCopiedInMenu] = useState(false);
+  const [isCopiedId, setIsCopiedId] = useState(false);
 
   const isOwner =
     post.author.id === CURRENT_USER.id ||
@@ -79,6 +80,29 @@ export function PostCard({
   const displayContent = localContent;
   const displayTags = post.tags;
   const displayTimestamp = post.timestamp;
+
+  const copyTextToClipboard = async (text: string): Promise<boolean> => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {}
+    try {
+      const el = document.createElement("textarea");
+      el.value = text;
+      el.setAttribute("readonly", "");
+      el.style.position = "fixed";
+      el.style.left = "-9999px";
+      document.body.appendChild(el);
+      el.select();
+      const res = document.execCommand("copy");
+      document.body.removeChild(el);
+      return res;
+    } catch {
+      return false;
+    }
+  };
 
   const handleLike = () => {
     setIsLikedLocal((prev) => !prev);
@@ -107,6 +131,11 @@ export function PostCard({
     setIsReposted(false);
     setSharesCountLocal((prev) => Math.max(0, prev - 1));
     setShowUndoRepostModal(false);
+    fetch(`/api/posts/${post.id}/repost`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "undo" }),
+    }).catch(() => {});
     toast.add({
       title: "دەنگدانەوەکەت لابرا! 🗑️",
       description: "دووبارە بڵاوکردنەوەکەت بەسەرکەوتوویی سڕایەوە.",
@@ -119,7 +148,11 @@ export function PostCard({
     setSharesCountLocal((prev) => prev + 1);
     setShowRepostModal(false);
     onRepost?.(post.id);
-    fetch(`/api/posts/${post.id}/repost`, { method: "POST" }).catch(() => {});
+    fetch(`/api/posts/${post.id}/repost`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ caption: repostCaption, action: "repost" }),
+    }).catch(() => {});
     toast.add({
       title: "پۆستەکە لە پەڕەی تۆ دەنگدانەوەی پەیدا کرد! 🔁",
       description: repostCaption.trim()
@@ -129,18 +162,49 @@ export function PostCard({
     });
   };
 
-  const handleShare = () => {
+  const handleShare = async () => {
     const url = `${window.location.origin}/?page=post&id=${post.id}`;
-    navigator.clipboard?.writeText?.(url);
+    await copyTextToClipboard(url);
     setIsCopied(true);
+    toast.add({
+      title: "بەستەری پۆست کۆپیکرا! 🔗",
+      description: url,
+      type: "success",
+    });
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  const handleCopyInMenu = () => {
+  const handleCopyPostId = async () => {
+    const success = await copyTextToClipboard(post.id);
+    if (success) {
+      setIsCopiedId(true);
+      toast.add({
+        title: "ناسنامەی پۆست کۆپیکرا! 📋",
+        description: post.id,
+        type: "success",
+      });
+      setTimeout(() => {
+        setIsCopiedId(false);
+        setShowMenu(false);
+      }, 1500);
+    }
+  };
+
+  const handleCopyLink = async () => {
     const url = `${window.location.origin}/?page=post&id=${post.id}`;
-    navigator.clipboard?.writeText?.(url);
-    setIsCopiedInMenu(true);
-    setTimeout(() => { setIsCopiedInMenu(false); setShowMenu(false); }, 1500);
+    const success = await copyTextToClipboard(url);
+    if (success) {
+      setIsCopiedInMenu(true);
+      toast.add({
+        title: "بەستەری پۆست کۆپیکرا! 🔗",
+        description: url,
+        type: "success",
+      });
+      setTimeout(() => {
+        setIsCopiedInMenu(false);
+        setShowMenu(false);
+      }, 1500);
+    }
   };
 
   const handleSaveEdit = () => {
@@ -263,7 +327,23 @@ export function PostCard({
               )}
 
               <button
-                onClick={handleCopyInMenu}
+                onClick={handleCopyPostId}
+                className={`w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors cursor-pointer ${
+                  isCopiedId
+                    ? "text-emerald-500 bg-emerald-500/10"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                {isCopiedId ? (
+                  <Check className="h-3.5 w-3.5 text-emerald-500" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+                <span>{isCopiedId ? "ئایدی کۆپیکرا!" : "کۆپیکردنی ئایدیی پۆست"}</span>
+              </button>
+
+              <button
+                onClick={handleCopyLink}
                 className={`w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors cursor-pointer ${
                   isCopiedInMenu
                     ? "text-emerald-500 bg-emerald-500/10"
@@ -273,9 +353,9 @@ export function PostCard({
                 {isCopiedInMenu ? (
                   <Check className="h-3.5 w-3.5 text-emerald-500" />
                 ) : (
-                  <Copy className="h-3.5 w-3.5" />
+                  <Share2 className="h-3.5 w-3.5" />
                 )}
-                <span>{isCopiedInMenu ? "کۆپیکرا!" : "کۆپیکردنی بەستەر"}</span>
+                <span>{isCopiedInMenu ? "بەستەر کۆپیکرا!" : "کۆپیکردنی بەستەر"}</span>
               </button>
             </div>
           )}
