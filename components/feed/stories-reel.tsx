@@ -2,13 +2,22 @@
 
 import { ChevronLeft, Plus, Sparkles } from "lucide-react";
 import { motion } from "motion/react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { toast } from "@/components/ui/toast";
 import { CURRENT_USER, DUMMY_STORIES } from "./dummy-data";
 import { useLanguage } from "@/lib/language-context";
+import { User } from "./types";
 
-export function StoriesReel() {
+interface StoriesReelProps {
+  currentUser?: User;
+}
+
+export function StoriesReel({ currentUser }: StoriesReelProps) {
   const { language } = useLanguage();
+  const user = currentUser ?? CURRENT_USER;
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const storyInputRef = useRef<HTMLInputElement>(null);
+  const [stories, setStories] = useState(DUMMY_STORIES);
 
   const scrollLeft = () => {
     if (scrollContainerRef.current) {
@@ -16,15 +25,55 @@ export function StoriesReel() {
     }
   };
 
+  const handleStoryFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type.startsWith("video/")) {
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(video.src);
+        if (video.duration > 10.5) {
+          toast.add({
+            title: "ڤیدیۆکە لە ١٠ چرکە زیاترە!",
+            description: "بۆ ساتەکان (Story) تەنها ڤیدیۆی تا ١٠ چرکە ڕێگەپێدراوە.",
+            type: "error",
+          });
+        } else {
+          toast.add({
+            title: "ساتی نوێ زیادکرا! ✨",
+            description: "ڤیدیۆی ساتەکەت بە سەرکەوتوویی بڵاوکرایەوە.",
+            type: "success",
+          });
+        }
+      };
+      video.src = URL.createObjectURL(file);
+    } else {
+      toast.add({
+        title: "ساتی نوێ زیادکرا! ✨",
+        description: "وێنەی ساتەکەت بۆ ماوەی ٢٤ کاتژمێر چالاک دەبێت.",
+        type: "success",
+      });
+    }
+  };
+
   return (
     <div className="relative w-full rounded-2xl border border-border/70 bg-card/60 p-3 shadow-xs backdrop-blur-sm">
+      <input
+        ref={storyInputRef}
+        type="file"
+        accept="image/*,video/*"
+        className="hidden"
+        onChange={handleStoryFile}
+      />
       <div className="flex items-center justify-between px-1 pb-2.5">
         <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
           <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-          <span>{language === "en" ? "Live Stories & Pulses" : "لێدانی ڕاستەوخۆ و ساتەکان"}</span>
+          <span>لێدانی ڕاستەوخۆ و ساتەکان</span>
         </div>
         <span className="text-[11px] font-medium text-muted-foreground">
-          {language === "en" ? "Expires in 24h" : "دوای ٢٤ کاتژمێر نامێنێت"}
+          دوای ٢٤ کاتژمێر نامێنێت
         </span>
       </div>
 
@@ -34,14 +83,17 @@ export function StoriesReel() {
         style={{ scrollbarWidth: "none" }}
       >
         {/* User Pulse Creator */}
-        <div className="group flex flex-col items-center gap-1.5 shrink-0 cursor-pointer">
+        <div
+          onClick={() => storyInputRef.current?.click()}
+          className="group flex flex-col items-center gap-1.5 shrink-0 cursor-pointer"
+        >
           <div className="relative p-0.5">
             <div className="relative rounded-full p-[2px] bg-transparent">
               <div className="rounded-full bg-card p-[2px]">
                 <div className="relative size-14 rounded-full overflow-hidden bg-muted">
                   <img
-                    src={CURRENT_USER.avatar}
-                    alt={CURRENT_USER.name}
+                    src={user.avatar}
+                    alt={user.name}
                     className="size-full object-cover transition-transform duration-200 group-hover:scale-105"
                   />
                 </div>
@@ -51,13 +103,13 @@ export function StoriesReel() {
             {/* Plus Action Button */}
             <div
               className="absolute bottom-0.5 right-0.5 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-card shadow-xs transition-transform duration-200 group-hover:scale-110"
-              title={language === "en" ? "Add Story" : "زیادکردنی سات"}
+              title="زیادکردنی سات"
             >
               <Plus className="size-3.5 stroke-[3]" />
             </div>
           </div>
           <span className="text-[11px] font-medium text-foreground text-center group-hover:text-primary transition-colors">
-            {language === "en" ? "Your Story" : "لێدانی تۆ"}
+            لێدانی تۆ
           </span>
         </div>
 

@@ -97,49 +97,22 @@ const LanguageContext = createContext<LanguageContextType>({
 });
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguageState] = useState<Language>("ckb");
-  const [mounted, setMounted] = useState(false);
-
   useEffect(() => {
     try {
-      // Clear legacy test value if it was saved
       localStorage.removeItem("pola_language");
-
-      const savedLang = localStorage.getItem("pola_language_selected") as Language | null;
-      if (savedLang === "en" || savedLang === "ckb") {
-        setLanguageState(savedLang);
-        applyLanguage(savedLang);
-      } else {
-        // By default, Kurdish is always selected
-        setLanguageState("ckb");
-        applyLanguage("ckb");
-      }
-    } catch {
-      setLanguageState("ckb");
-      applyLanguage("ckb");
-    }
-    setMounted(true);
+      localStorage.removeItem("pola_language_selected");
+    } catch {}
+    document.documentElement.dir = "rtl";
+    document.documentElement.lang = "ckb";
   }, []);
 
-  const applyLanguage = (lang: Language) => {
-    const isLtr = lang === "en";
-    document.documentElement.dir = isLtr ? "ltr" : "rtl";
-    document.documentElement.lang = isLtr ? "en" : "ckb";
-  };
-
-  const setLanguage = (lang: Language) => {
-    setLanguageState(lang);
-    applyLanguage(lang);
-    try {
-      localStorage.setItem("pola_language_selected", lang);
-    } catch {}
-  };
-
-  const dir: "rtl" | "ltr" = language === "en" ? "ltr" : "rtl";
+  const language: Language = "ckb";
+  const dir: "rtl" = "rtl";
+  const setLanguage = () => {};
 
   const t = (key: string): string => {
     if (TRANSLATIONS[key]) {
-      return TRANSLATIONS[key][language] || TRANSLATIONS[key]["ckb"] || key;
+      return TRANSLATIONS[key]["ckb"] || key;
     }
     return key;
   };

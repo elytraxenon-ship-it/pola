@@ -58,7 +58,7 @@ export function PostDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[88vh] overflow-hidden p-0 gap-0 rounded-2xl border border-border/80 bg-card shadow-2xl flex flex-col">
+      <DialogContent className="w-full sm:max-w-2xl md:max-w-3xl max-h-[90vh] overflow-hidden p-0 gap-0 rounded-2xl border border-border/80 bg-card shadow-2xl flex flex-col">
         {/* Header with Author Info */}
         <DialogHeader className="p-4 pb-3 border-b border-border/60 bg-muted/20 shrink-0">
           <div className="flex items-center justify-between pr-8">

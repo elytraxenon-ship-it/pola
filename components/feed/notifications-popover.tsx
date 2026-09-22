@@ -105,6 +105,8 @@ const BG: Record<NotificationItem["type"], string> = {
   spark:   "bg-purple-500",
 };
 
+import { useNotifications } from "@/lib/hooks/use-notifications";
+
 export function NotificationsPopover({
   isOpen,
   onClose,
@@ -112,14 +114,12 @@ export function NotificationsPopover({
   onUpdateUnreadCount,
 }: NotificationsPopoverProps) {
   const { language, dir } = useLanguage();
-  const [notifications, setNotifications] = useState<NotificationItem[]>(ALL_NOTIFICATIONS);
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const ref = useRef<HTMLDivElement>(null);
 
-  const unread = notifications.filter((n) => !n.read).length;
-
   useEffect(() => {
-    onUpdateUnreadCount?.(unread);
-  }, [unread, onUpdateUnreadCount]);
+    onUpdateUnreadCount?.(unreadCount);
+  }, [unreadCount, onUpdateUnreadCount]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -129,14 +129,6 @@ export function NotificationsPopover({
     document.addEventListener("mousedown", fn);
     return () => document.removeEventListener("mousedown", fn);
   }, [isOpen, onClose]);
-
-  const markAllRead = () =>
-    setNotifications((p) => p.map((n) => ({ ...n, read: true })));
-
-  const toggle = (id: string) =>
-    setNotifications((p) =>
-      p.map((n) => (n.id === id ? { ...n, read: !n.read } : n))
-    );
 
   // Show only first 4 in the dropdown
   const preview = notifications.slice(0, 4);
@@ -161,20 +153,20 @@ export function NotificationsPopover({
               <span className="text-xs font-bold text-foreground">
                 {language === "en" ? "Notifications" : "ئاگادارکردنەوەکان"}
               </span>
-              {unread > 0 && (
+              {unreadCount > 0 && (
                 <motion.span
-                  key={unread}
+                  key={unreadCount}
                   initial={{ scale: 1.5 }}
                   animate={{ scale: 1 }}
                   className="rounded-full bg-rose-500/15 text-rose-500 px-1.5 py-0.5 text-[9px] font-extrabold"
                 >
-                  {unread}
+                  {unreadCount}
                 </motion.span>
               )}
             </div>
-            {unread > 0 && (
+            {unreadCount > 0 && (
               <button
-                onClick={markAllRead}
+                onClick={markAllAsRead}
                 className="flex items-center gap-1 text-[10px] text-primary hover:underline cursor-pointer font-semibold"
               >
                 <CheckCheck className="h-3 w-3" />
@@ -189,7 +181,7 @@ export function NotificationsPopover({
               <motion.div
                 key={n.id}
                 layout
-                onClick={() => toggle(n.id)}
+                onClick={() => markAsRead(n.id)}
                 className={`flex items-center gap-2.5 px-3.5 py-2.5 cursor-pointer transition-colors hover:bg-muted/40 relative ${
                   !n.read ? "bg-primary/5" : ""
                 }`}

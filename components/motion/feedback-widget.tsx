@@ -70,6 +70,17 @@ export function FeedbackWidget({
   const [message, setMessage] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
 
+  // Check if feedback was already submitted today (1 per day limit)
+  useEffect(() => {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const lastFeedbackDate = localStorage.getItem("pola_last_feedback_date");
+      if (lastFeedbackDate === today) {
+        setIsSubmitted(true);
+      }
+    } catch {}
+  }, []);
+
   const open = status !== "idle";
   const busy = status === "sending";
 
@@ -133,6 +144,10 @@ export function FeedbackWidget({
   const scheduleSuccessClose = () => {
     clearCloseTimer();
     closeTimerRef.current = setTimeout(() => {
+      try {
+        const today = new Date().toISOString().split("T")[0];
+        localStorage.setItem("pola_last_feedback_date", today);
+      } catch {}
       setIsSubmitted(true);
       close();
     }, SUCCESS_DURATION_MS);
@@ -142,6 +157,13 @@ export function FeedbackWidget({
     if (busy || message.trim().length === 0) return;
     setStatus("sending");
     try {
+      // Call feedback API route
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: message.trim() }),
+      }).catch(() => {});
+
       await onSubmit?.({ message });
       setStatus("sent");
       scheduleSuccessClose();

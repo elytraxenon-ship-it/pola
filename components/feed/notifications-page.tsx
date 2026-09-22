@@ -12,69 +12,10 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { Avatar10 } from "@/components/motion/avatar";
-import { ALL_NOTIFICATIONS, NotificationItem } from "@/components/feed/notifications-popover";
+import { NotificationItem } from "@/components/feed/notifications-popover";
 import { useLanguage } from "@/lib/language-context";
 
-// Extend with more items for the full page
-const FULL_NOTIFICATIONS: NotificationItem[] = [
-  ...ALL_NOTIFICATIONS,
-  {
-    id: "n5",
-    type: "flame",
-    actor: {
-      name: "Ava Zhou",
-      handle: "@avaz",
-      avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80",
-    },
-    text: "دەنگدانەوەی بۆ وێنەی نوێی پڕۆفایلەکەت دەربڕی",
-    textEn: "liked your new profile picture",
-    time: "٥ کاتژمێر",
-    timeEn: "5h ago",
-    read: true,
-  },
-  {
-    id: "n6",
-    type: "comment",
-    actor: {
-      name: "Marcus Vance",
-      handle: "@marcusv",
-      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
-    },
-    text: "وەڵامی لێدوانت دایەوە",
-    textEn: "replied to your comment",
-    time: "دیرۆ",
-    timeEn: "Yesterday",
-    read: true,
-  },
-  {
-    id: "n7",
-    type: "spark",
-    actor: {
-      name: "Pola Creative Lab",
-      handle: "@polalab",
-      avatar: "https://images.unsplash.com/photo-1531427186611-ecfd6d936c79?auto=format&fit=crop&w=200&q=80",
-    },
-    text: "بڵاوکراوەکەت ٥٠٠ دەنگدانەوەی بەدەستهێنا",
-    textEn: "your moment reached 500 sparks",
-    time: "دیرۆ",
-    timeEn: "Yesterday",
-    read: true,
-  },
-  {
-    id: "n8",
-    type: "invite",
-    actor: {
-      name: "Elena Rostova",
-      handle: "@elena",
-      avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=150&q=80",
-    },
-    text: "تۆ بانگهێشت کرایت بۆ بوارێکی نوێ",
-    textEn: "invited you to join a new sphere",
-    time: "٢ ڕۆژ",
-    timeEn: "2d ago",
-    read: true,
-  },
-];
+
 
 const ICON: Record<NotificationItem["type"], React.ReactNode> = {
   flame:   <Flame className="h-3 w-3 fill-current" />,
@@ -90,21 +31,22 @@ const BG: Record<NotificationItem["type"], string> = {
   spark:   "bg-purple-500",
 };
 
+import { useNotifications } from "@/lib/hooks/use-notifications";
+
 interface NotificationsPageProps {
   onBack: () => void;
 }
 
 export function NotificationsPage({ onBack }: NotificationsPageProps) {
   const { language, dir } = useLanguage();
-  const [notifications, setNotifications] = useState<NotificationItem[]>(FULL_NOTIFICATIONS);
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
-  const unread = notifications.filter((n) => !n.read).length;
+  const unread = unreadCount;
   const displayed = filter === "unread" ? notifications.filter((n) => !n.read) : notifications;
 
-  const markAllRead = () => setNotifications((p) => p.map((n) => ({ ...n, read: true })));
-  const toggle = (id: string) =>
-    setNotifications((p) => p.map((n) => (n.id === id ? { ...n, read: !n.read } : n)));
+  const markAllRead = () => markAllAsRead();
+  const toggle = (id: string) => markAsRead(id);
 
   const typeLabel: Record<NotificationItem["type"], string> = {
     flame:   language === "en" ? "Flame" : "دەنگدانەوە",

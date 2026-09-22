@@ -1,25 +1,26 @@
 "use client";
 
 import { ArrowLeft, RefreshCw, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FeedbackWidget } from "@/components/motion/feedback-widget";
 import { Toaster } from "@/components/ui/toast";
 import { CreatePost } from "./feed/create-post";
-import { DUMMY_CONTACTS, INITIAL_POSTS } from "./feed/dummy-data";
+import { INITIAL_POSTS } from "./feed/dummy-data";
 import { LeftSidebar } from "./feed/left-sidebar";
-import { MessengerChat } from "./feed/messenger-chat";
-import { MessengerPage } from "./feed/messenger-page";
 import { Navbar } from "./feed/navbar";
 import { NotificationsPage } from "./feed/notifications-page";
 import { PostCard } from "./feed/post-card";
 import { PostDialog } from "./feed/post-dialog";
 
 import { SkeletonPost } from "./feed/skeleton-post";
+import { SpacesPage } from "./feed/spaces-page";
 import { StoriesReel } from "./feed/stories-reel";
 import { Post, User } from "./feed/types";
 import { ProfilePage } from "./profile/profile-page";
 import { SettingsPage } from "./settings/settings-page";
 import { useLanguage } from "@/lib/language-context";
+import { createClient } from "@/lib/supabase/client";
+import { useCurrentUser } from "@/lib/hooks/use-current-user";
 
 interface HomePageProps {
   onLogout?: () => void;
@@ -28,23 +29,130 @@ interface HomePageProps {
 
 export default function HomePage({ onLogout, initialView = "feed" }: HomePageProps) {
   const { dir, t } = useLanguage();
-  const [currentView, setCurrentView] = useState<"feed" | "profile" | "notifications" | "messages" | "settings">(initialView);
+  const [currentView, setCurrentView] = useState<"feed" | "profile" | "notifications" | "settings">(initialView);
   const [activeTab, setActiveTab] = useState("pulse");
   const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
   const [isLoading, setIsLoading] = useState(false);
   const [activeSection, setActiveSection] = useState("pulse");
+  const [autoOpenCreate, setAutoOpenCreate] = useState(false);
+
+  // Real logged-in user for navbar / sidebar
+  const currentUser = useCurrentUser();
 
   // Dialog state for post comments modal
   const [selectedPostForDialog, setSelectedPostForDialog] = useState<Post | null>(null);
   const [isPostDialogOpen, setIsPostDialogOpen] = useState(false);
+  const [profileUserId, setProfileUserId] = useState<string>("1");
 
-  // Messenger chat state
-  const [activeChatContact, setActiveChatContact] = useState<User | null>(null);
-  const [isChatOpen, setIsChatOpen] = useState(false);
+  // Fetch real posts from Supabase / API
+  const fetchPosts = () => {
+    setIsLoading(true);
+    fetch("/api/posts")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setPosts(data);
+        }
+      })
+      .catch((err) => console.error("Error loading posts:", err))
+      .finally(() => setIsLoading(false));
+  };
+
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
+  // Fetch current user sequential_id so ?page=profile uses the real user ID
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("sequential_id")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (profile?.sequential_id) {
+          const mySeqId = String(profile.sequential_id);
+          const params = new URLSearchParams(window.location.search);
+          if (!params.get("id")) {
+            setProfileUserId(mySeqId);
+          }
+        }
+      }
+    });
+  }, []);
+
+  // Synchronize view with URL query parameters (?page=profile&id=..., etc.)
+  useEffect(() => {
+    const handleUrlChange = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const page = params.get("page");
+        const id = params.get("id");
+        if (id) {
+          setProfileUserId(id);
+        }
+        if (page === "profile") {
+          setCurrentView("profile");
+        } else if (page === "settings") {
+          setCurrentView("settings");
+        } else if (page === "notifications") {
+          setCurrentView("notifications");
+        } else {
+          setCurrentView("feed");
+        }
+      } catch {}
+    };
+
+    handleUrlChange();
+    window.addEventListener("popstate", handleUrlChange);
+    return () => window.removeEventListener("popstate", handleUrlChange);
+  }, []);
+
+  const navigateTo = (view: "feed" | "profile" | "notifications" | "settings", params?: Record<string, string>) => {
+    setCurrentView(view);
+    try {
+      if (view === "feed") {
+        window.history.pushState({}, "", window.location.pathname);
+      } else {
+        const searchParams = new URLSearchParams();
+        searchParams.set("page", view);
+        if (view === "profile") {
+          searchParams.set("id", params?.id || profileUserId || "1");
+        }
+        window.history.pushState({}, "", `${window.location.pathname}?${searchParams.toString()}`);
+      }
+    } catch {}
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   // Handler for creating a new post
   const handleAddPost = (newPost: Post) => {
     setPosts((prev) => [newPost, ...prev]);
+  };
+
+  // Handler for editing an existing post
+  const handleEditPost = (postId: string, newContent: string) => {
+    setPosts((prev) =>
+      prev.map((post) =>
+        post.id === postId ? { ...post, content: newContent } : post
+      )
+    );
+    fetch(`/api/posts/${postId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: newContent }),
+    }).catch((err) => console.error("Error editing post:", err));
+  };
+
+  // Handler for deleting a post
+  const handleDeletePost = (postId: string) => {
+    setPosts((prev) => prev.filter((post) => post.id !== postId));
+    fetch(`/api/posts/${postId}`, {
+      method: "DELETE",
+    }).catch((err) => console.error("Error deleting post:", err));
   };
 
   // Handler for adding a comment to a specific post
@@ -55,11 +163,10 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
           const newComment = {
             id: `c-${Date.now()}`,
             author: {
-              id: "u-current",
-              name: "Alex Morgan",
-              handle: "@alexmorgan",
-              avatar:
-                "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80",
+              id: currentUser.id,
+              name: currentUser.name,
+              handle: currentUser.handle,
+              avatar: currentUser.avatar,
             },
             content: commentText,
             timestamp: "کەمێک لەمەوبەر",
@@ -101,12 +208,9 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
     );
   };
 
-  // Simulate skeleton reload
+  // Refresh posts from Supabase
   const handleSimulateReload = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1200);
+    fetchPosts();
   };
 
   return (
@@ -119,57 +223,38 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
         activeTab={currentView === "feed" ? activeTab : ""}
         onTabChange={(tab) => {
           setActiveTab(tab);
-          setCurrentView("feed");
+          navigateTo("feed");
         }}
         onLogout={onLogout}
         onOpenCreateModal={() => {
-          window.scrollTo({ top: 0, behavior: "smooth" });
+          // Navigate to feed first, then open create post
+          navigateTo("feed");
+          // Small delay so feed renders before we open the composer
+          setTimeout(() => setAutoOpenCreate(true), 80);
         }}
-        onOpenChat={() => {
-          setActiveChatContact(DUMMY_CONTACTS[0]);
-          setIsChatOpen(true);
-        }}
-              onViewProfile={() => {
-          setCurrentView("profile");
-          window.scrollTo({ top: 0, behavior: "smooth" });
+        onViewProfile={() => {
+          navigateTo("profile");
         }}
         onOpenSettings={() => {
-          setCurrentView("settings");
-          window.scrollTo({ top: 0, behavior: "smooth" });
+          navigateTo("settings");
         }}
         onViewNotifications={() => {
-          setCurrentView("notifications");
-          window.scrollTo({ top: 0, behavior: "smooth" });
+          navigateTo("notifications");
         }}
-        onViewMessages={() => {
-          setCurrentView("messages");
-          window.scrollTo({ top: 0, behavior: "smooth" });
-        }}
-        onSelectChatContact={(contact) => {
-          setActiveChatContact(contact);
-          setCurrentView("messages");
-          window.scrollTo({ top: 0, behavior: "smooth" });
-        }}
+        currentUser={currentUser}
       />
 
-      {/* View Switcher: Messages Page vs Notifications Page vs Profile Page vs Main Feed */}
-      {currentView === "messages" ? (
-        <div className="pt-2">
-          <MessengerPage
-            onBack={() => setCurrentView("feed")}
-            initialContact={activeChatContact}
-          />
-        </div>
-      ) : currentView === "notifications" ? (
+      {/* View Switcher: Notifications Page vs Profile Page vs Main Feed */}
+      {currentView === "notifications" ? (
         <div className="mx-auto max-w-2xl px-2 sm:px-4 pt-2">
-          <NotificationsPage onBack={() => setCurrentView("feed")} />
+          <NotificationsPage onBack={() => navigateTo("feed")} />
         </div>
       ) : currentView === "profile" ? (
         <div className="pt-4">
           {/* Back to Stream Bar */}
           <div className="mx-auto max-w-5xl px-4 pb-3 flex items-center">
             <button
-              onClick={() => setCurrentView("feed")}
+              onClick={() => navigateTo("feed")}
               className="flex items-center gap-2 rounded-full border border-border/80 bg-card px-3.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer shadow-2xs"
             >
               <ArrowLeft className={`h-3.5 w-3.5 ${dir === "rtl" ? "rotate-180" : ""}`} />
@@ -179,6 +264,8 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
 
           {/* Profile Page Component */}
           <ProfilePage
+            currentUser={currentUser}
+            userId={profileUserId}
             posts={posts}
             onAddPost={handleAddPost}
             onLikeToggle={handleLikeToggle}
@@ -187,16 +274,30 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
               setSelectedPostForDialog(p);
               setIsPostDialogOpen(true);
             }}
-            onBackToFeed={() => setCurrentView("feed")}
+            onBackToFeed={() => navigateTo("feed")}
             onOpenSettings={() => {
-              setCurrentView("settings");
-              window.scrollTo({ top: 0, behavior: "smooth" });
+              navigateTo("settings");
             }}
           />
         </div>
       ) : currentView === "settings" ? (
         <div className="pt-2">
-          <SettingsPage onBack={() => setCurrentView("feed")} />
+          <SettingsPage onBack={() => navigateTo("feed")} />
+        </div>
+      ) : activeTab === "spaces" ? (
+        /* Spaces / Explore Page */
+        <div className="mx-auto max-w-5xl">
+          <SpacesPage
+            posts={posts}
+            onLikeToggle={handleLikeToggle}
+            onAddComment={handleAddComment}
+            onEditPost={handleEditPost}
+            onDeletePost={handleDeletePost}
+            onOpenDialog={(p) => {
+              setSelectedPostForDialog(p);
+              setIsPostDialogOpen(true);
+            }}
+          />
         </div>
       ) : (
         /* 2-Column Feed Layout (Left Sidebar + Main Stream) */
@@ -206,25 +307,29 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
             activeSection={activeSection}
             onSelectSection={(sec) => {
               setActiveSection(sec);
-              setCurrentView("feed");
+              navigateTo("feed");
             }}
             onViewProfile={() => {
-              setCurrentView("profile");
-              window.scrollTo({ top: 0, behavior: "smooth" });
+              navigateTo("profile");
             }}
             onOpenSettings={() => {
-              setCurrentView("settings");
-              window.scrollTo({ top: 0, behavior: "smooth" });
+              navigateTo("settings");
             }}
+            currentUser={currentUser}
           />
 
           {/* Center Column: Stories, Create Post, and Feed Posts */}
           <main className="w-full max-w-2xl py-4 flex flex-col gap-4">
             {/* Top Stories / Pulses Reel */}
-            <StoriesReel />
+            <StoriesReel currentUser={currentUser} />
 
             {/* Create Post Studio Card */}
-            <CreatePost onAddPost={handleAddPost} />
+            <CreatePost
+              currentUser={currentUser}
+              onAddPost={handleAddPost}
+              autoOpen={autoOpenCreate}
+              onAutoOpenHandled={() => setAutoOpenCreate(false)}
+            />
 
             {/* Feed Filter / Skeleton Demo Bar */}
             <div className="flex items-center justify-between px-2 py-1">
@@ -256,6 +361,20 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
                   <SkeletonPost />
                   <SkeletonPost />
                 </>
+              ) : posts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/80 bg-card/40 p-12 text-center backdrop-blur-xs">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary mb-3">
+                    <Sparkles className="h-6 w-6" />
+                  </div>
+                  <h3 className="text-sm font-bold text-foreground">
+                    {dir === "ltr" ? "No posts yet" : "تا ئێستا هیچ پۆستێک نییە"}
+                  </h3>
+                  <p className="mt-1 text-xs text-muted-foreground max-w-xs">
+                    {dir === "ltr"
+                      ? "Share your first thought or photo with the community above!"
+                      : "یەکەمین بیرۆکە یان وێنەی خۆت لەگەڵ هاوڕێیان هاوبەش بکە!"}
+                  </p>
+                </div>
               ) : (
                 posts.map((post) => (
                   <PostCard
@@ -263,6 +382,8 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
                     post={post}
                     onLikeToggle={handleLikeToggle}
                     onAddComment={handleAddComment}
+                    onEditPost={handleEditPost}
+                    onDeletePost={handleDeletePost}
                     onOpenDialog={(p) => {
                       setSelectedPostForDialog(p);
                       setIsPostDialogOpen(true);
@@ -282,13 +403,6 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
         onOpenChange={setIsPostDialogOpen}
         onAddComment={handleAddComment}
         onLikeToggle={handleLikeToggle}
-      />
-
-      {/* Messenger Chat Panel using @/components/ui/message */}
-      <MessengerChat
-        contact={activeChatContact}
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
       />
 
       {/* Pola Toast Notifications */}

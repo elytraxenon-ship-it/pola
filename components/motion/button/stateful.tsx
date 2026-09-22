@@ -95,7 +95,8 @@ function TextSlot({
   const measureRef = useRef<HTMLSpanElement>(null);
   const [width, setWidth] = useState<number>();
   const label = typeof children === "string" ? children : null;
-  const cascade = label !== null && !reduce;
+  const isCursive = label !== null && /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(label);
+  const cascade = label !== null && !reduce && !isCursive;
 
   // Measure strings with the same per-letter layout as the cascade. Measuring
   // the whole string preserves kerning, which can make it narrower than the

@@ -1,6 +1,8 @@
-"use client";
+﻿"use client";
 
+import { useState } from "react";
 import { motion, type Variants } from "motion/react";
+import { createClient } from "@/lib/supabase/client";
 
 // Simple Google SVG Icon
 const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -29,6 +31,14 @@ export interface AuthProps {
 }
 
 export default function Auth({ onLogin }: AuthProps = {}) {
+  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 4000);
+  };
+
   const containerVariants: Variants = {
     hidden: { opacity: 0 },
     visible: {
@@ -53,13 +63,53 @@ export default function Auth({ onLogin }: AuthProps = {}) {
     },
   };
 
+  // Email/password login is disabled — show a hint toast
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin?.();
+    showToast("چوونەژوورەوەی ئیمەیڵ ناچاڵاکە، تکایە لە ڕێگەی Google بچووە ژوورەوە");
+  };
+
+  // Real Google OAuth via Supabase
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: "offline",
+            prompt: "consent",
+          },
+        },
+      });
+      if (error) {
+        showToast("هەڵەیەک ڕوویدا: " + error.message);
+        setLoading(false);
+      }
+      // On success, browser redirects to Google — no further action needed
+    } catch {
+      showToast("پەیوەندی بە سوپابەیس نەبوو");
+      setLoading(false);
+    }
   };
 
   return (
     <div className="flex min-h-screen w-full bg-white font-sans text-neutral-950 antialiased selection:bg-neutral-900 selection:text-white relative">
+      {/* Toast notification */}
+      {toast && (
+        <motion.div
+          initial={{ opacity: 0, y: -16 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -16 }}
+          className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-white text-sm font-medium px-5 py-3 rounded-full shadow-lg"
+          dir="rtl"
+        >
+          {toast}
+        </motion.div>
+      )}
+
       {/* Left Form Section */}
       <div className="flex w-full flex-col lg:w-1/2">
         {/* Header Branding */}
@@ -89,11 +139,20 @@ export default function Auth({ onLogin }: AuthProps = {}) {
             <motion.div variants={itemVariants} className="mb-4">
               <button
                 type="button"
-                onClick={() => onLogin?.()}
-                className="flex w-full items-center justify-center gap-3 rounded-full border border-neutral-200 bg-white px-6 py-3 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50 active:bg-neutral-100 cursor-pointer"
+                id="google-signin-btn"
+                onClick={handleGoogleLogin}
+                disabled={loading}
+                className="flex w-full items-center justify-center gap-3 rounded-full border border-neutral-200 bg-white px-6 py-3 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50 active:bg-neutral-100 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <GoogleIcon className="text-lg" />
-                چوونەژوورەوە لە ڕێگەی گووگڵ
+                {loading ? (
+                  <svg className="animate-spin h-4 w-4 text-neutral-400" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                ) : (
+                  <GoogleIcon className="text-lg" />
+                )}
+                {loading ? "ئامادەکردن..." : "چوونەژوورەوە لە ڕێگەی گووگڵ"}
               </button>
             </motion.div>
 
@@ -107,7 +166,7 @@ export default function Auth({ onLogin }: AuthProps = {}) {
               <div className="grow border-t border-neutral-200"></div>
             </motion.div>
 
-            {/* Form */}
+            {/* Form — email/password (blocked) */}
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <motion.div
                 variants={itemVariants}
@@ -150,6 +209,7 @@ export default function Auth({ onLogin }: AuthProps = {}) {
               {/* Sign in Button */}
               <motion.div variants={itemVariants} className="mt-2">
                 <button
+                  id="email-signin-btn"
                   type="submit"
                   className="w-full rounded-full bg-gradient-to-b from-[#3a3a3a] to-[#121212] px-6 py-3.5 text-sm font-semibold text-white shadow-sm transition-all hover:opacity-90 active:scale-[0.98] cursor-pointer"
                 >
@@ -174,4 +234,3 @@ export default function Auth({ onLogin }: AuthProps = {}) {
     </div>
   );
 }
-
