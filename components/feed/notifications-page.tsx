@@ -35,9 +35,11 @@ import { useNotifications } from "@/lib/hooks/use-notifications";
 
 interface NotificationsPageProps {
   onBack: () => void;
+  onOpenPost?: (id: string) => void;
+  onViewProfile?: (id: string) => void;
 }
 
-export function NotificationsPage({ onBack }: NotificationsPageProps) {
+export function NotificationsPage({ onBack, onOpenPost, onViewProfile }: NotificationsPageProps) {
   const { language, dir } = useLanguage();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [filter, setFilter] = useState<"all" | "unread">("all");
@@ -131,7 +133,10 @@ export function NotificationsPage({ onBack }: NotificationsPageProps) {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.18 }}
-                onClick={() => toggle(n.id)}
+                onClick={() => {
+                  toggle(n.id);
+                  if (n.entityId && n.entityType === "post") onOpenPost?.(n.entityId);
+                }}
                 className={`relative flex items-start gap-3 px-4 py-3.5 cursor-pointer transition-colors hover:bg-muted/30 ${
                   !n.read ? "bg-primary/5" : ""
                 }`}
@@ -147,11 +152,13 @@ export function NotificationsPage({ onBack }: NotificationsPageProps) {
 
                 {/* avatar + type badge */}
                 <div className="relative shrink-0">
-                  <Avatar10
-                    name={n.actor.name}
-                    avatar={n.actor.avatar}
-                    size="size-10"
-                  />
+                  <button type="button" aria-label={`View ${n.actor.name}'s profile`} onClick={(event) => {
+                    event.stopPropagation();
+                    toggle(n.id);
+                    if (n.actor.id) onViewProfile?.(n.actor.id);
+                  }} className="rounded-full cursor-pointer">
+                    <Avatar10 name={n.actor.name} avatar={n.actor.avatar} size="size-10" />
+                  </button>
                   <div
                     className={`absolute -bottom-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-card text-white shadow-xs ${BG[n.type]} ${
                       dir === "rtl" ? "-left-1" : "-right-1"
@@ -164,7 +171,11 @@ export function NotificationsPage({ onBack }: NotificationsPageProps) {
                 {/* content */}
                 <div className="flex-1 min-w-0 space-y-0.5">
                   <p className="text-xs leading-snug text-foreground">
-                    <span className="font-bold">{n.actor.name}</span>{" "}
+                    <button type="button" onClick={(event) => {
+                      event.stopPropagation();
+                      toggle(n.id);
+                      if (n.actor.id) onViewProfile?.(n.actor.id);
+                    }} className="font-bold hover:underline cursor-pointer">{n.actor.name}</button>{" "}
                     <span className="text-foreground/85">
                       {language === "en" && n.textEn ? n.textEn : n.text}
                     </span>

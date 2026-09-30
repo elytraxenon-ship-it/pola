@@ -14,7 +14,7 @@ async function loadCurrentUser(): Promise<User> {
   if (cachedUser) return cachedUser;
   if (fetchPromise) return fetchPromise;
 
-  fetchPromise = (async () => {
+  const pending = (async () => {
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
@@ -26,7 +26,18 @@ async function loadCurrentUser(): Promise<User> {
         .eq("id", user.id)
         .maybeSingle();
 
-      if (!profile) return CURRENT_USER;
+      if (!profile) {
+        const result: User = {
+          id: user.id,
+          name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "بەکارهێنەر",
+          handle: `@${user.user_metadata?.user_name || user.user_metadata?.preferred_username || "user"}`,
+          avatar: user.user_metadata?.avatar_url || user.user_metadata?.picture || "",
+          verified: false,
+          online: true,
+        };
+        cachedUser = result;
+        return result;
+      }
 
       const result: User = {
         id: String(profile.sequential_id || profile.id),
@@ -36,7 +47,7 @@ async function loadCurrentUser(): Promise<User> {
           profile.avatar_url ||
           user.user_metadata?.avatar_url ||
           user.user_metadata?.picture ||
-          CURRENT_USER.avatar,
+          "",
         verified: true,
         online: true,
       };
@@ -44,11 +55,23 @@ async function loadCurrentUser(): Promise<User> {
       cachedUser = result;
       return result;
     } catch {
-      return CURRENT_USER;
+      return {
+        id: "unknown",
+        name: "بەکارهێنەر",
+        handle: "@user",
+        avatar: "",
+        verified: false,
+        online: false,
+      };
     }
   })();
+  fetchPromise = pending;
 
-  return fetchPromise;
+  const loadedUser = await pending;
+  // Anonymous/failure fallbacks are intentionally not cached so a sign-in on
+  // the same tab can load the newly authenticated profile on the next visit.
+  if (!cachedUser && fetchPromise === pending) fetchPromise = null;
+  return loadedUser;
 }
 
 /** Call this to bust the cache (e.g. after avatar upload). */
@@ -57,12 +80,23 @@ export function invalidateCurrentUserCache() {
   fetchPromise = null;
 }
 
-export function useCurrentUser(): User {
+export function useCurrentUserState(): { user: User; isLoading: boolean } {
   const [user, setUser] = useState<User>(cachedUser ?? CURRENT_USER);
+  const [isLoading, setIsLoading] = useState(!cachedUser);
 
   useEffect(() => {
-    loadCurrentUser().then(setUser);
+    let active = true;
+    loadCurrentUser().then((loadedUser) => {
+      if (!active) return;
+      setUser(loadedUser);
+      setIsLoading(false);
+    });
+    return () => { active = false; };
   }, []);
 
-  return user;
+  return { user, isLoading };
+}
+
+export function useCurrentUser(): User {
+  return useCurrentUserState().user;
 }

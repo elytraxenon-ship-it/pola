@@ -6,7 +6,6 @@ import {
   Flame,
   Globe2,
   LogOut,
-  Orbit,
   Plus,
   Radio,
   Search,
@@ -33,6 +32,10 @@ interface NavbarProps {
   onViewProfile?: () => void;
   onOpenSettings?: () => void;
   onViewNotifications?: () => void;
+  onViewNotificationPost?: (id: string) => void;
+  onViewNotificationProfile?: (id: string) => void;
+  onSearchProfile?: (id: string) => void;
+  onSearchPost?: (id: string) => void;
   currentUser?: User;
 }
 
@@ -45,6 +48,10 @@ export function Navbar({
   onViewProfile,
   onOpenSettings,
   onViewNotifications,
+  onViewNotificationPost,
+  onViewNotificationProfile,
+  onSearchProfile,
+  onSearchPost,
   currentUser,
 }: NavbarProps) {
   const user = currentUser ?? CURRENT_USER;
@@ -63,28 +70,30 @@ export function Navbar({
   ];
 
   return (
-    <header dir={dir} className="sticky top-0 z-50 w-full border-b border-border/70 bg-background/80 px-4 py-2.5 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
+    <header dir={dir} className="sticky top-0 z-50 w-full border-b border-border/70 bg-background/90 px-3 py-2 backdrop-blur-xl sm:px-4 sm:py-2.5">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-2 gap-y-2 md:flex-nowrap md:gap-4">
         {/* Right (in RTL): Distinctive Pola Brand & Search */}
-        <div className="flex items-center gap-3 md:gap-5">
-          <div
+        <div className="order-1 flex min-w-0 items-center gap-2 md:order-none md:gap-5">
+          <button
+            type="button"
             onClick={() => onTabChange?.("pulse")}
-            className="flex items-center gap-2.5 group cursor-pointer"
+            aria-label="Pola home"
+            className="group flex shrink-0 items-center gap-2.5"
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-tr from-purple-600 via-primary to-indigo-500 text-white shadow-md shadow-primary/25 transition-all duration-300 group-hover:scale-105 group-hover:rotate-6">
-              <Orbit className="size-5 transition-transform duration-300 group-hover:rotate-45" />
+            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-border/70 bg-background shadow-sm transition-all duration-300 group-hover:scale-105">
+              <img src="/flags/kurdistan.svg" alt="کوردستان" className="h-full w-full object-cover" />
             </div>
             <span className="text-xl font-black tracking-tight text-foreground leading-none font-sans">
               POLA
             </span>
-          </div>
+          </button>
 
           {/* Facebook-style In-place Search Dropdown */}
-          <SearchDropdown />
+          <SearchDropdown onViewProfile={onSearchProfile} onOpenPost={onSearchPost} />
         </div>
 
         {/* Center: Pola 2-Channel Segmented Switch */}
-        <nav className="flex items-center rounded-full border border-border/80 bg-muted/40 p-1 backdrop-blur-md shadow-2xs">
+        <nav className="order-3 mx-auto flex w-fit items-center rounded-full border border-border/80 bg-muted/40 p-1 shadow-2xs backdrop-blur-md md:order-none md:mx-0 md:w-auto">
           {channels.map((channel) => {
             const Icon = channel.icon;
             const isActive = activeTab === channel.id;
@@ -92,7 +101,7 @@ export function Navbar({
               <button
                 key={channel.id}
                 onClick={() => onTabChange?.(channel.id)}
-                className={`relative flex items-center gap-2 rounded-full px-5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                className={`relative flex min-h-9 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-bold transition-all cursor-pointer sm:gap-2 sm:px-5 ${
                   isActive
                     ? "text-primary-foreground font-black"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
@@ -115,14 +124,14 @@ export function Navbar({
         </nav>
 
         {/* Left (in RTL): Studio Button, Signals & Avatar10 */}
-        <div className="flex items-center gap-2.5">
+        <div className="order-2 flex shrink-0 items-center gap-1.5 sm:gap-2.5 md:order-none">
           <Button
             size="sm"
             onClick={onOpenCreateModal}
-            className="rounded-full gap-1.5 bg-foreground text-background hover:opacity-90 shadow-sm text-xs font-semibold px-3.5 h-8.5 cursor-pointer"
+            className="size-9 rounded-full bg-foreground p-0 text-background shadow-sm hover:opacity-90 sm:h-8.5 sm:w-auto sm:gap-1.5 sm:px-3.5"
           >
             <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{t("newMoment")}</span>
+            <span className="hidden md:inline">{t("newMoment")}</span>
           </Button>
 
           <div className="relative">
@@ -131,7 +140,8 @@ export function Navbar({
                 setShowNotifications((prev) => !prev);
                 setShowProfileMenu(false);
               }}
-              className={`flex h-8.5 w-8.5 items-center justify-center rounded-full border bg-card transition-colors cursor-pointer ${
+              aria-label="ئاگادارکردنەوەکان"
+              className={`flex size-10 items-center justify-center rounded-full border bg-card transition-colors sm:size-8.5 ${
                 showNotifications
                   ? "border-primary/60 text-primary bg-primary/10"
                   : "border-border/70 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -162,6 +172,14 @@ export function Navbar({
                 onViewNotifications?.();
               }}
               onUpdateUnreadCount={handleUpdateUnreadCount}
+              onOpenPost={(id) => {
+                setShowNotifications(false);
+                onViewNotificationPost?.(id);
+              }}
+              onViewProfile={(id) => {
+                setShowNotifications(false);
+                onViewNotificationProfile?.(id);
+              }}
             />
           </div>
 

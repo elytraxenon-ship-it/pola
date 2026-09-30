@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
         created_at,
         actor:actor_id (
           id,
+          sequential_id,
           username,
           full_name,
           avatar_url
@@ -87,6 +88,7 @@ export async function GET(request: NextRequest) {
         id: n.id,
         type: n.type || "flame",
         actor: {
+          id: String(actorProfile.sequential_id || actorProfile.id || ""),
           name: actorName,
           handle: actorHandle,
           avatar: actorAvatar,
@@ -101,6 +103,8 @@ export async function GET(request: NextRequest) {
         time: timeKu,
         timeEn: timeEn,
         read: !!n.read,
+        entityId: n.entity_id,
+        entityType: n.entity_type,
       };
     });
 

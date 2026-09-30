@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowLeft, RefreshCw, Sparkles } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FeedbackWidget } from "@/components/motion/feedback-widget";
 import { Toaster } from "@/components/ui/toast";
 import { CreatePost } from "./feed/create-post";
@@ -15,12 +15,13 @@ import { PostDialog } from "./feed/post-dialog";
 import { SkeletonPost } from "./feed/skeleton-post";
 import { SpacesPage } from "./feed/spaces-page";
 import { StoriesReel } from "./feed/stories-reel";
-import { Post, User } from "./feed/types";
+import { Post } from "./feed/types";
 import { ProfilePage } from "./profile/profile-page";
 import { SettingsPage } from "./settings/settings-page";
 import { useLanguage } from "@/lib/language-context";
 import { createClient } from "@/lib/supabase/client";
-import { useCurrentUser } from "@/lib/hooks/use-current-user";
+import { useCurrentUserState } from "@/lib/hooks/use-current-user";
+import { HomeLoadingSkeleton } from "./feed/home-loading-skeleton";
 
 interface HomePageProps {
   onLogout?: () => void;
@@ -32,17 +33,18 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
   const [currentView, setCurrentView] = useState<"feed" | "profile" | "notifications" | "settings">(initialView);
   const [activeTab, setActiveTab] = useState("pulse");
   const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeSection, setActiveSection] = useState("pulse");
   const [autoOpenCreate, setAutoOpenCreate] = useState(false);
 
   // Real logged-in user for navbar / sidebar
-  const currentUser = useCurrentUser();
+  const { user: currentUser, isLoading: isCurrentUserLoading } = useCurrentUserState();
 
   // Dialog state for post comments modal
   const [selectedPostForDialog, setSelectedPostForDialog] = useState<Post | null>(null);
   const [isPostDialogOpen, setIsPostDialogOpen] = useState(false);
   const [profileUserId, setProfileUserId] = useState<string>("1");
+  const pendingLikeRequests = useRef(new Set<string>());
 
   // Fetch real posts from Supabase / API
   const fetchPosts = () => {
@@ -59,7 +61,13 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
   };
 
   useEffect(() => {
-    fetchPosts();
+    let active = true;
+    fetch("/api/posts")
+      .then((res) => res.json())
+      .then((data) => { if (active && Array.isArray(data)) setPosts(data); })
+      .catch((err) => console.error("Error loading posts:", err))
+      .finally(() => { if (active) setIsLoading(false); });
+    return () => { active = false; };
   }, []);
 
   // Fetch current user sequential_id so ?page=profile uses the real user ID
@@ -91,6 +99,24 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
         const params = new URLSearchParams(window.location.search);
         const page = params.get("page");
         const id = params.get("id");
+        if (page === "post" && id) {
+          setCurrentView("feed");
+          setActiveTab("pulse");
+          setIsPostDialogOpen(true);
+          fetch(`/api/posts/${encodeURIComponent(id)}`, { cache: "no-store" })
+            .then(async (res) => {
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || "Post not found");
+              setSelectedPostForDialog(data);
+              setPosts((prev) => prev.some((post) => post.id === data.id) ? prev.map((post) => post.id === data.id ? data : post) : [data, ...prev]);
+            })
+            .catch((err) => {
+              console.error("Unable to open shared post:", err);
+              setIsPostDialogOpen(false);
+            });
+          return;
+        }
+        setIsPostDialogOpen(false);
         if (id) {
           setProfileUserId(id);
         }
@@ -120,7 +146,9 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
         const searchParams = new URLSearchParams();
         searchParams.set("page", view);
         if (view === "profile") {
-          searchParams.set("id", params?.id || profileUserId || "1");
+          const targetProfileId = params?.id || profileUserId || "1";
+          setProfileUserId(targetProfileId);
+          searchParams.set("id", targetProfileId);
         }
         window.history.pushState({}, "", `${window.location.pathname}?${searchParams.toString()}`);
       }
@@ -220,11 +248,15 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
   };
 
   // Handler for like toggle
-  const handleLikeToggle = (postId: string) => {
+  const handleLikeToggle = (postId: string, requestedState?: boolean) => {
+    if (pendingLikeRequests.current.has(postId)) return;
+    pendingLikeRequests.current.add(postId);
+    const currentState = posts.find((post) => post.id === postId)?.isLiked ?? selectedPostForDialog?.isLiked ?? false;
+    const nextState = requestedState ?? !currentState;
     setPosts((prev) =>
       prev.map((post) => {
         if (post.id === postId) {
-          const isLiked = !post.isLiked;
+          const isLiked = nextState;
           const likesCount = isLiked
             ? (post.likesCount || 0) + 1
             : Math.max(0, (post.likesCount || 1) - 1);
@@ -239,10 +271,14 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
     );
 
     // Call API to persist like/unlike
-    fetch(`/api/posts/${postId}/like`, { method: "POST" })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
+    fetch(`/api/posts/${postId}/like`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isLiked: nextState }),
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || "Unable to update like");
           setPosts((prev) =>
             prev.map((post) =>
               post.id === postId
@@ -254,17 +290,50 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
                 : post
             )
           );
-        }
+          setSelectedPostForDialog((post) => post?.id === postId ? { ...post, isLiked: data.isLiked, likesCount: data.likesCount } : post);
       })
-      .catch((err) => console.error("Error toggling like:", err));
+      .catch((err) => {
+        console.error("Error toggling like:", err);
+        setPosts((prev) => prev.map((post) => post.id === postId ? { ...post, isLiked: !nextState, likesCount: Math.max(0, post.likesCount + (nextState ? -1 : 1)) } : post));
+        setSelectedPostForDialog((post) => post?.id === postId ? { ...post, isLiked: !nextState, likesCount: Math.max(0, post.likesCount + (nextState ? -1 : 1)) } : post);
+      })
+      .finally(() => pendingLikeRequests.current.delete(postId));
+  };
+
+  const openPostById = (postId: string) => {
+    const url = `/?page=post&id=${encodeURIComponent(postId)}`;
+    window.history.pushState({}, "", url);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  };
+
+  const openPost = (post: Post) => {
+    setCurrentView("feed");
+    setActiveTab("pulse");
+    setSelectedPostForDialog(post);
+    setIsPostDialogOpen(true);
+    const url = `/?page=post&id=${encodeURIComponent(post.id)}`;
+    window.history.pushState({}, "", url);
+  };
+
+  const viewProfile = (id?: string) => {
+    navigateTo("profile", id ? { id } : undefined);
+  };
+
+  const viewProfileFromDialog = (id: string) => {
+    setIsPostDialogOpen(false);
+    viewProfile(id);
   };
 
   // Handler for repost
-  const handleRepost = (postId: string) => {
+  const handleRepost = (postId: string, delta: 1 | -1 | 0, sharesCount?: number) => {
     setPosts((prev) =>
       prev.map((post) =>
         post.id === postId
-          ? { ...post, sharesCount: (post.sharesCount || 0) + 1 }
+          ? {
+              ...post,
+              sharesCount: sharesCount ?? Math.max(0, (post.sharesCount || 0) + delta),
+              isReposted: delta === 0 ? post.isReposted : delta > 0,
+            }
           : post
       )
     );
@@ -274,6 +343,10 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
   const handleSimulateReload = () => {
     fetchPosts();
   };
+
+  if (isCurrentUserLoading) {
+    return <HomeLoadingSkeleton dir={dir} />;
+  }
 
   return (
     <div dir={dir} className="min-h-screen bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground relative">
@@ -295,8 +368,12 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
           setTimeout(() => setAutoOpenCreate(true), 80);
         }}
         onViewProfile={() => {
-          navigateTo("profile");
+          navigateTo("profile", currentUser?.id ? { id: currentUser.id } : undefined);
         }}
+        onViewNotificationPost={openPostById}
+        onViewNotificationProfile={viewProfile}
+        onSearchProfile={viewProfile}
+        onSearchPost={openPostById}
         onOpenSettings={() => {
           navigateTo("settings");
         }}
@@ -309,7 +386,7 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
       {/* View Switcher: Notifications Page vs Profile Page vs Main Feed */}
       {currentView === "notifications" ? (
         <div className="mx-auto max-w-2xl px-2 sm:px-4 pt-2">
-          <NotificationsPage onBack={() => navigateTo("feed")} />
+          <NotificationsPage onBack={() => navigateTo("feed")} onOpenPost={openPostById} onViewProfile={viewProfile} />
         </div>
       ) : currentView === "profile" ? (
         <div className="pt-4">
@@ -332,10 +409,8 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
             onAddPost={handleAddPost}
             onLikeToggle={handleLikeToggle}
             onAddComment={handleAddComment}
-            onOpenDialog={(p) => {
-              setSelectedPostForDialog(p);
-              setIsPostDialogOpen(true);
-            }}
+            onOpenDialog={openPost}
+            onViewProfile={viewProfile}
             onBackToFeed={() => navigateTo("feed")}
             onOpenSettings={() => {
               navigateTo("settings");
@@ -351,14 +426,13 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
         <div className="mx-auto max-w-5xl">
           <SpacesPage
             posts={posts}
+            currentUser={currentUser}
             onLikeToggle={handleLikeToggle}
             onAddComment={handleAddComment}
             onEditPost={handleEditPost}
             onDeletePost={handleDeletePost}
-            onOpenDialog={(p) => {
-              setSelectedPostForDialog(p);
-              setIsPostDialogOpen(true);
-            }}
+            onOpenDialog={openPost}
+            onViewProfile={viewProfile}
           />
         </div>
       ) : (
@@ -372,7 +446,7 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
               navigateTo("feed");
             }}
             onViewProfile={() => {
-              navigateTo("profile");
+              navigateTo("profile", currentUser?.id ? { id: currentUser.id } : undefined);
             }}
             onOpenSettings={() => {
               navigateTo("settings");
@@ -442,15 +516,14 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
                   <PostCard
                     key={post.id}
                     post={post}
+                    currentUser={currentUser}
                     onLikeToggle={handleLikeToggle}
                     onAddComment={handleAddComment}
                     onEditPost={handleEditPost}
                     onDeletePost={handleDeletePost}
-                    onOpenDialog={(p) => {
-                      setSelectedPostForDialog(p);
-                      setIsPostDialogOpen(true);
-                    }}
+                    onOpenDialog={openPost}
                     onRepost={handleRepost}
+                    onViewProfile={viewProfile}
                   />
                 ))
               )}
@@ -463,9 +536,16 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
       <PostDialog
         post={selectedPostForDialog}
         isOpen={isPostDialogOpen}
-        onOpenChange={setIsPostDialogOpen}
+        onOpenChange={(open) => {
+          setIsPostDialogOpen(open);
+          if (!open && new URLSearchParams(window.location.search).get("page") === "post") {
+            window.history.pushState({}, "", window.location.pathname);
+          }
+        }}
         onAddComment={handleAddComment}
         onLikeToggle={handleLikeToggle}
+        currentUser={currentUser}
+        onViewProfile={viewProfileFromDialog}
       />
 
       {/* Pola Toast Notifications */}

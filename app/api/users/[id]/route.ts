@@ -24,6 +24,10 @@ async function fetchUserProfile(id: string) {
   const { data: profile, error } = await query.maybeSingle();
 
   if (profile && !error) {
+    const { data: mediaMetrics } = await supabase.rpc("get_profile_media_metrics", {
+      p_profile_id: profile.id,
+    });
+    const profileMetrics = Array.isArray(mediaMetrics) ? mediaMetrics[0] : mediaMetrics;
     return {
       id: String(profile.sequential_id || profile.id),
       uuid: profile.id,
@@ -48,7 +52,9 @@ async function fetchUserProfile(id: string) {
         followers: String(profile.followers_count || 0),
         following: profile.following_count || 0,
       },
-      verified: true,
+      media: profileMetrics?.media || [],
+      resonanceCount: Number(profileMetrics?.resonance_count || 0),
+      verified: false,
       online: true,
     };
   }

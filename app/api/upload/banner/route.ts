@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     // 1. Fetch current profile to get old cover_url
     const { data: profile } = await supabase
       .from("profiles")
-      .select("cover_url")
+      .select("cover_url, sequential_id")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
     // 5. Invalidate profile cache
     try {
       revalidateCacheTag(CACHE_TAGS.profile(user.id));
+      if (profile?.sequential_id) revalidateCacheTag(CACHE_TAGS.profile(String(profile.sequential_id)));
     } catch (e) {
       // ignore
     }

@@ -12,8 +12,8 @@ import {
   Dna,
   Flame,
   FlaskConical,
+  Gamepad2,
   Heart,
-  Layers,
   Palette,
   Search,
   Sparkles,
@@ -23,7 +23,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PostCard } from "./post-card";
-import { Post } from "./types";
+import { Post, User } from "./types";
 
 export interface PolaTag {
   id: string;
@@ -68,19 +68,6 @@ export const POLA_TAGS: PolaTag[] = [
     stats: "٢١٠+ سات",
     memberCount: "١.٨ هەزار بەشداربوو",
     isTrending: true,
-  },
-  {
-    id: "programming",
-    label: "programming",
-    labelKu: "کۆدنووسی و ئەلگۆریتم",
-    icon: Layers,
-    color: "text-sky-400",
-    gradient: "from-sky-600/25 via-blue-600/15 to-transparent",
-    bgGlow: "bg-sky-500/10",
-    borderHover: "hover:border-sky-500/40",
-    description: "تەکنیکەکانی کۆدکردن، بنەماکانی داتابەیس و ئەندازیاری نەرمەکاڵا",
-    stats: "١٨٠+ سات",
-    memberCount: "١.٢ هەزار بەشداربوو",
   },
   {
     id: "Architecture",
@@ -138,7 +125,7 @@ export const POLA_TAGS: PolaTag[] = [
   {
     id: "Chemistry",
     label: "Chemistry",
-    labelKu: "کیمیا و زانست",
+    labelKu: "کیمیا",
     icon: FlaskConical,
     color: "text-teal-400",
     gradient: "from-teal-600/25 via-cyan-600/15 to-transparent",
@@ -174,6 +161,19 @@ export const POLA_TAGS: PolaTag[] = [
     stats: "١١٠+ سات",
     memberCount: "٧٨٠ بەشداربوو",
   },
+  {
+    id: "games",
+    label: "games",
+    labelKu: "یارییەکان",
+    icon: Gamepad2,
+    color: "text-fuchsia-400",
+    gradient: "from-fuchsia-600/25 via-purple-600/15 to-transparent",
+    bgGlow: "bg-fuchsia-500/10",
+    borderHover: "hover:border-fuchsia-500/40",
+    description: "یارییە دیجیتاڵییەکان، یارییە ئەلیکترۆنییەکان و دروستکردنی یاری",
+    stats: "٧٠+ سات",
+    memberCount: "٥٢٠ بەشداربوو",
+  },
 ];
 
 interface SpacesPageProps {
@@ -183,6 +183,8 @@ interface SpacesPageProps {
   onEditPost?: (postId: string, newContent: string) => void;
   onDeletePost?: (postId: string) => void;
   onOpenDialog?: (post: Post) => void;
+  currentUser?: User;
+  onViewProfile?: (userId: string) => void;
 }
 
 export function SpacesPage({
@@ -192,6 +194,8 @@ export function SpacesPage({
   onEditPost,
   onDeletePost,
   onOpenDialog,
+  currentUser,
+  onViewProfile,
 }: SpacesPageProps) {
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -263,7 +267,7 @@ export function SpacesPage({
   return (
     <div dir="rtl" className="w-full max-w-5xl mx-auto px-2 sm:px-4 py-6 text-right select-none font-sans">
       {/* Header Container */}
-      <div className="relative z-10 rounded-3xl border border-border/70 bg-card/90 backdrop-blur-xl p-5 sm:p-7 mb-7 shadow-xs">
+      <div className="relative z-30 rounded-3xl border border-border/70 bg-card/90 backdrop-blur-xl p-5 sm:p-7 mb-7 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
           {/* Title & Subtitle */}
           <div>
@@ -405,7 +409,7 @@ export function SpacesPage({
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 6 }}
                     transition={{ duration: 0.15, ease: "easeOut" }}
-                    className="absolute left-0 top-full mt-2 w-64 rounded-2xl border border-border bg-white dark:bg-[#18181b] text-foreground p-2 shadow-2xl z-50 text-right ring-1 ring-black/10 dark:ring-white/10"
+                    className="absolute right-0 top-full z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-border bg-white p-2 text-right text-foreground shadow-2xl ring-1 ring-black/10 dark:bg-[#18181b] dark:ring-white/10 sm:left-0 sm:right-auto"
                   >
                     <div className="flex items-center justify-between px-3 py-1.5 text-[11px] font-bold text-muted-foreground border-b border-border/60 mb-1.5">
                       <span>هەڵبژاردنی بوارەکانی تر</span>
@@ -414,7 +418,7 @@ export function SpacesPage({
                       </span>
                     </div>
 
-                    <div className="space-y-1 max-h-[420px] overflow-y-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pr-0.5">
+                    <div className="space-y-1 max-h-[min(52dvh,24rem)] overflow-y-auto overscroll-contain no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pr-0.5">
                       {otherTags.map((tag) => {
                         const Icon = tag.icon;
                         const isSelected = activeTag === tag.id;
@@ -464,8 +468,8 @@ export function SpacesPage({
       </div>
 
       {/* Stream Section Header (relative z-10 so dropdown above at z-40 floats cleanly) */}
-      <div className="relative z-10 flex items-center justify-between mb-5 px-1">
-        <div className="flex items-center gap-2">
+      <div className="relative z-10 mb-5 flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Activity className="h-4 w-4 text-primary" />
           <h3 className="text-sm sm:text-base font-bold text-foreground">
             {activeTag ? `ساتەکانی ${activeTagInfo?.labelKu}` : "ساتە زیندووەکانی پۆلا"}
@@ -484,7 +488,7 @@ export function SpacesPage({
         </div>
 
         {/* Sort Filter Tabs */}
-        <div className="flex items-center gap-1 rounded-xl border border-border/70 bg-card/60 p-1">
+        <div className="flex w-fit shrink-0 items-center gap-1 rounded-xl border border-border/70 bg-card/60 p-1">
           <button
             onClick={() => setSortFilter("hot")}
             className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
@@ -522,6 +526,8 @@ export function SpacesPage({
               onEditPost={onEditPost}
               onDeletePost={onDeletePost}
               onOpenDialog={onOpenDialog}
+              currentUser={currentUser}
+              onViewProfile={onViewProfile}
             />
           ))
         ) : (

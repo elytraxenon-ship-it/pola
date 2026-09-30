@@ -19,7 +19,8 @@ import { CURRENT_USER } from "./dummy-data";
 import { POLA_TAGS } from "./spaces-page";
 import { Post } from "./types";
 import { useLanguage } from "@/lib/language-context";
-import { compressPostImage } from "@/lib/image-compress";
+import { compressPostImage, cropImageToAspect } from "@/lib/image-compress";
+import { ImageCropDialog } from "@/components/profile/image-crop-dialog";
 
 interface CreatePostProps {
   onAddPost?: (newPost: Post) => void;
@@ -37,6 +38,8 @@ export function CreatePost({ onAddPost, autoOpen, onAutoOpenHandled, currentUser
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [isPreparingImage, setIsPreparingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -44,6 +47,11 @@ export function CreatePost({ onAddPost, autoOpen, onAutoOpenHandled, currentUser
   const [hashQuery, setHashQuery] = useState("");
   const [showHashMenu, setShowHashMenu] = useState(false);
   const hashMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!mediaUrl?.startsWith("blob:")) return;
+    return () => URL.revokeObjectURL(mediaUrl);
+  }, [mediaUrl]);
 
   // Open and focus when the navbar "ساتێک" button triggers autoOpen
   useEffect(() => {
@@ -110,6 +118,7 @@ export function CreatePost({ onAddPost, autoOpen, onAutoOpenHandled, currentUser
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (file) {
       if (!file.type.startsWith("image/")) {
         toast.add({
@@ -119,10 +128,34 @@ export function CreatePost({ onAddPost, autoOpen, onAutoOpenHandled, currentUser
         });
         return;
       }
-      setSelectedFile(file);
-      const url = URL.createObjectURL(file);
-      setMediaUrl(url);
+      setCropFile(file);
     }
+  };
+
+  const handleConfirmImageCrop = async (positionX: number, positionY: number) => {
+    if (!cropFile) return;
+    setIsPreparingImage(true);
+    try {
+      const croppedImage = await cropImageToAspect(cropFile, 4 / 3, positionX, positionY);
+      const croppedFile = new File([croppedImage], "post-image.webp", { type: "image/webp" });
+      setSelectedFile(croppedFile);
+      setMediaUrl(URL.createObjectURL(croppedImage));
+      setCropFile(null);
+    } catch (error) {
+      toast.add({
+        title: "نەتوانرا وێنەکە ئامادە بکرێت",
+        description: error instanceof Error ? error.message : "تکایە وێنەیەکی تر هەڵبژێرە.",
+        type: "error",
+      });
+    } finally {
+      setIsPreparingImage(false);
+    }
+  };
+
+  const clearSelectedMedia = () => {
+    setMediaUrl(null);
+    setSelectedFile(null);
+    setCropFile(null);
   };
 
   const handleSubmit = async () => {
@@ -261,7 +294,7 @@ export function CreatePost({ onAddPost, autoOpen, onAutoOpenHandled, currentUser
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
               transition={{ type: "spring", stiffness: 360, damping: 26 }}
-              className={`relative w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-2xl ${
+              className={`relative max-h-[calc(100dvh-1rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-3 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:p-5 ${
                 dir === "rtl" ? "text-right" : "text-left"
               }`}
             >
@@ -400,19 +433,17 @@ export function CreatePost({ onAddPost, autoOpen, onAutoOpenHandled, currentUser
 
               {/* Uploaded Media Preview */}
               {mediaUrl && (
-                <div className="relative mt-2 overflow-hidden rounded-xl border border-border/60 bg-muted/30 max-h-56">
+                <div className="relative mt-2 aspect-[4/3] overflow-hidden rounded-xl border border-border/60 bg-muted/30">
                   <img
                     src={mediaUrl}
                     alt="Upload preview"
-                    className="w-full h-full object-cover"
+                    className="h-full w-full object-cover"
                   />
                   <button
                     type="button"
-                    onClick={() => {
-                      setMediaUrl(null);
-                      setSelectedFile(null);
-                    }}
-                    className="absolute top-2 left-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white hover:bg-black transition-colors cursor-pointer"
+                    onClick={clearSelectedMedia}
+                    aria-label="سڕینەوەی وێنە"
+                    className="absolute left-2 top-2 flex size-9 items-center justify-center rounded-full bg-black/75 text-white shadow-md transition-colors hover:bg-black"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -425,7 +456,7 @@ export function CreatePost({ onAddPost, autoOpen, onAutoOpenHandled, currentUser
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="rounded-lg p-1.5 hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                    className="grid size-10 place-items-center rounded-xl hover:bg-muted hover:text-foreground transition-colors"
                     title="زیادکردنی وێنە"
                   >
                     <ImageIcon className="h-4 w-4 text-emerald-500" />
@@ -433,7 +464,7 @@ export function CreatePost({ onAddPost, autoOpen, onAutoOpenHandled, currentUser
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="rounded-lg p-1.5 hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                    className="grid size-10 place-items-center rounded-xl hover:bg-muted hover:text-foreground transition-colors"
                     title="کامێرا"
                   >
                     <Camera className="h-4 w-4 text-cyan-500" />
@@ -455,6 +486,13 @@ export function CreatePost({ onAddPost, autoOpen, onAutoOpenHandled, currentUser
           </div>
         )}
       </AnimatePresence>
+      <ImageCropDialog
+        file={cropFile}
+        kind="post"
+        isSaving={isPreparingImage}
+        onCancel={() => { if (!isPreparingImage) setCropFile(null); }}
+        onConfirm={handleConfirmImageCrop}
+      />
     </>
   );
 }

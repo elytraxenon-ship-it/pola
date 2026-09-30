@@ -1,7 +1,19 @@
-<svg width="30" height="20" viewBox="0 0 30 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="30" height="20" fill="#F5F5F5"/>
-<rect width="1876" height="988" transform="translate(-1026 -380)" fill="white"/>
-<path d="M30 0H0V20H30V0Z" fill="#F0F0F0"/>
-<path d="M30 0H0V6.66665H30V0Z" fill="#D80027"/>
-<path d="M30 13.3334H0V20H30V13.3334Z" fill="#6DA544"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 20" role="img" aria-label="Kurdistan flag">
+  <rect width="30" height="6.667" fill="#ed1c24"/>
+  <rect y="6.667" width="30" height="6.666" fill="#fff"/>
+  <rect y="13.333" width="30" height="6.667" fill="#278e43"/>
+  <g fill="#f8c300" transform="translate(15 10)">
+    <path id="ray" d="M0-4.4 0.58-1.55-0.58-1.55Z"/>
+    <use href="#ray" transform="rotate(17.143)"/><use href="#ray" transform="rotate(34.286)"/>
+    <use href="#ray" transform="rotate(51.429)"/><use href="#ray" transform="rotate(68.572)"/>
+    <use href="#ray" transform="rotate(85.715)"/><use href="#ray" transform="rotate(102.858)"/>
+    <use href="#ray" transform="rotate(120.001)"/><use href="#ray" transform="rotate(137.144)"/>
+    <use href="#ray" transform="rotate(154.287)"/><use href="#ray" transform="rotate(171.43)"/>
+    <use href="#ray" transform="rotate(188.573)"/><use href="#ray" transform="rotate(205.716)"/>
+    <use href="#ray" transform="rotate(222.859)"/><use href="#ray" transform="rotate(240.002)"/>
+    <use href="#ray" transform="rotate(257.145)"/><use href="#ray" transform="rotate(274.288)"/>
+    <use href="#ray" transform="rotate(291.431)"/><use href="#ray" transform="rotate(308.574)"/>
+    <use href="#ray" transform="rotate(325.717)"/><use href="#ray" transform="rotate(342.86)"/>
+    <circle r="1.75"/>
+  </g>
 </svg>

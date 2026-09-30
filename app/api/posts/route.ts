@@ -81,7 +81,22 @@ export async function GET(request: NextRequest) {
   try {
     const formattedPosts = await getCachedFeed(limit);
     if (formattedPosts) {
-      return NextResponse.json(formattedPosts);
+      const supabase = await createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || formattedPosts.length === 0) return NextResponse.json(formattedPosts);
+
+      const postIds = formattedPosts.map((post) => post.id);
+      const [{ data: likes }, { data: reposts }] = await Promise.all([
+        supabase.from("post_likes").select("post_id").eq("user_id", user.id).in("post_id", postIds),
+        supabase.from("post_reposts").select("post_id").eq("user_id", user.id).in("post_id", postIds),
+      ]);
+      const likedIds = new Set((likes || []).map((row) => row.post_id));
+      const repostedIds = new Set((reposts || []).map((row) => row.post_id));
+      return NextResponse.json(formattedPosts.map((post) => ({
+        ...post,
+        isLiked: likedIds.has(post.id),
+        isReposted: repostedIds.has(post.id),
+      })), { headers: { "Cache-Control": "private, no-store" } });
     }
   } catch (error) {
     console.error("GET /api/posts Supabase cache error:", error);
@@ -189,6 +204,7 @@ export async function POST(request: NextRequest) {
           try {
             revalidateCacheTag(CACHE_TAGS.feed);
             revalidateCacheTag(CACHE_TAGS.profile(user.id));
+            if (profile.sequential_id) revalidateCacheTag(CACHE_TAGS.profile(String(profile.sequential_id)));
           } catch (e) {}
 
           return NextResponse.json(newPost, { status: 201 });

@@ -7,83 +7,56 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-// POST /api/posts/[id]/repost - Toggle/increment/decrement repost
+// Reposts are stored per user; a composite primary key makes retries idempotent.
 export async function POST(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
-  let action = "repost";
-  let caption = "";
-
-  try {
-    const body = await request.json();
-    if (body.action) action = body.action;
-    if (body.caption) caption = body.caption;
-  } catch {}
+  const body = await request.json().catch(() => ({}));
+  const action = body.action === "undo" ? "undo" : "repost";
+  let authenticatedUserId: string | null = null;
 
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    // Fetch current shares_count
-    const { data: post } = await supabase
-      .from("posts")
-      .select("id, author_id, shares_count")
-      .eq("id", id)
-      .maybeSingle();
-
-    if (post) {
-      const currentShares = post.shares_count || 0;
-      const nextShares =
-        action === "undo" ? Math.max(0, currentShares - 1) : currentShares + 1;
-
-      await supabase
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      authenticatedUserId = user.id;
+      const { data: post, error: postError } = await supabase
         .from("posts")
-        .update({ shares_count: nextShares })
-        .eq("id", id);
+        .select("id, shares_count")
+        .eq("id", id)
+        .maybeSingle();
+      if (postError) throw postError;
+      if (!post) return NextResponse.json({ error: "Post not found" }, { status: 404 });
 
-      if (action !== "undo" && user && post.author_id !== user.id) {
-        await supabase.from("notifications").insert({
-          recipient_id: post.author_id,
-          actor_id: user.id,
-          type: "spark",
-          entity_type: "post",
-          entity_id: id,
-          content: caption
-            ? `پۆستەکەت دووبارە بڵاوکرایەوە: "${caption.slice(0, 30)}"`
-            : "پۆستەکەتی دووبارە بڵاوکردەوە 🔁",
-        });
+      if (action === "undo") {
+        const { error } = await supabase.from("post_reposts").delete()
+          .eq("post_id", id).eq("user_id", user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("post_reposts").upsert(
+          { post_id: id, user_id: user.id },
+          { onConflict: "user_id,post_id", ignoreDuplicates: true }
+        );
+        if (error) throw error;
       }
 
-      try {
-        revalidateCacheTag(CACHE_TAGS.feed);
-      } catch {}
+      const { data: refreshed } = await supabase.from("posts")
+        .select("shares_count").eq("id", id).maybeSingle();
 
-      return NextResponse.json({
-        success: true,
-        sharesCount: nextShares,
-        action,
-      });
+      try { revalidateCacheTag(CACHE_TAGS.feed); } catch {}
+      return NextResponse.json({ success: true, sharesCount: refreshed?.shares_count ?? post.shares_count ?? 0, action });
     }
   } catch (err) {
     console.error("POST /api/posts/[id]/repost Supabase error:", err);
   }
 
-  // Fallback to mockDb
+  if (authenticatedUserId) {
+    return NextResponse.json({ error: "Repost update failed. Please try again." }, { status: 500 });
+  }
+
   const post = mockDb.getPostById(id);
-  if (!post) {
-    return NextResponse.json({ error: "Post not found" }, { status: 404 });
-  }
-
-  if (action === "undo") {
-    post.sharesCount = Math.max(0, (post.sharesCount || 1) - 1);
-  } else {
-    post.sharesCount = (post.sharesCount || 0) + 1;
-  }
-
-  return NextResponse.json({
-    success: true,
-    sharesCount: post.sharesCount,
-    action,
-  });
+  if (!post) return NextResponse.json({ error: "Post not found" }, { status: 404 });
+  post.sharesCount = action === "undo"
+    ? Math.max(0, (post.sharesCount || 0) - 1)
+    : (post.sharesCount || 0) + 1;
+  return NextResponse.json({ success: true, sharesCount: post.sharesCount, action });
 }

@@ -10,14 +10,16 @@ import {
   UserCheck,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Avatar10 } from "@/components/motion/avatar";
 import { useLanguage } from "@/lib/language-context";
 
 export interface NotificationItem {
   id: string;
   type: "flame" | "comment" | "invite" | "spark";
-  actor: { name: string; avatar: string; handle: string };
+  actor: { id?: string; name: string; avatar: string; handle: string };
+  entityId?: string | null;
+  entityType?: "post" | "comment" | "profile" | null;
   text: string;
   textEn?: string;
   time: string;
@@ -89,6 +91,8 @@ interface NotificationsPopoverProps {
   onClose: () => void;
   onViewAll?: () => void;
   onUpdateUnreadCount?: (count: number) => void;
+  onOpenPost?: (id: string) => void;
+  onViewProfile?: (id: string) => void;
 }
 
 const ICON: Record<NotificationItem["type"], React.ReactNode> = {
@@ -112,6 +116,8 @@ export function NotificationsPopover({
   onClose,
   onViewAll,
   onUpdateUnreadCount,
+  onOpenPost,
+  onViewProfile,
 }: NotificationsPopoverProps) {
   const { language, dir } = useLanguage();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
@@ -181,7 +187,10 @@ export function NotificationsPopover({
               <motion.div
                 key={n.id}
                 layout
-                onClick={() => markAsRead(n.id)}
+                onClick={() => {
+                  markAsRead(n.id);
+                  if (n.entityId && n.entityType === "post") onOpenPost?.(n.entityId);
+                }}
                 className={`flex items-center gap-2.5 px-3.5 py-2.5 cursor-pointer transition-colors hover:bg-muted/40 relative ${
                   !n.read ? "bg-primary/5" : ""
                 }`}
@@ -193,11 +202,13 @@ export function NotificationsPopover({
 
                 {/* avatar + badge */}
                 <div className="relative shrink-0">
-                  <Avatar10
-                    name={n.actor.name}
-                    avatar={n.actor.avatar}
-                    size="size-8"
-                  />
+                  <button type="button" aria-label={`View ${n.actor.name}'s profile`} onClick={(event) => {
+                    event.stopPropagation();
+                    markAsRead(n.id);
+                    if (n.actor.id) onViewProfile?.(n.actor.id);
+                  }} className="rounded-full cursor-pointer">
+                    <Avatar10 name={n.actor.name} avatar={n.actor.avatar} size="size-8" />
+                  </button>
                   <div
                     className={`absolute -bottom-0.5 -left-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-card text-white ${BG[n.type]}`}
                   >
@@ -208,7 +219,11 @@ export function NotificationsPopover({
                 {/* text */}
                 <div className={`flex-1 min-w-0 space-y-0.5 ${dir === "rtl" ? "text-right" : "text-left"}`}>
                   <p className="text-[11px] leading-snug text-foreground line-clamp-2">
-                    <span className="font-bold">{n.actor.name}</span>{" "}
+                    <button type="button" onClick={(event) => {
+                      event.stopPropagation();
+                      markAsRead(n.id);
+                      if (n.actor.id) onViewProfile?.(n.actor.id);
+                    }} className="font-bold hover:underline cursor-pointer">{n.actor.name}</button>{" "}
                     <span className="text-foreground/80">
                       {language === "en" && n.textEn ? n.textEn : n.text}
                     </span>

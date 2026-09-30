@@ -11,10 +11,14 @@ interface RouteParams {
 // GET /api/posts/[id]/comments
 export async function GET(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
+  const search = new URL(request.url).searchParams;
+  const requestedLimit = Number(search.get("limit") || 30);
+  const limit = Number.isFinite(requestedLimit) ? Math.min(50, Math.max(1, requestedLimit)) : 30;
+  const before = search.get("before");
 
   try {
     const supabase = await createClient();
-    const { data: comments, error } = await supabase
+    let query = supabase
       .from("post_comments")
       .select(`
         id,
@@ -29,11 +33,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         )
       `)
       .eq("post_id", id)
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: false });
+
+    if (before) query = query.lt("created_at", before);
+    const { data: comments, error } = await query.limit(limit);
 
     if (comments && !error) {
       const formatted: Comment[] = comments.map((c: any) => {
         const author = c.profiles || {};
+        const createdAt = new Date(c.created_at);
         return {
           id: c.id,
           author: {
@@ -46,7 +54,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             verified: true,
           },
           content: c.content,
-          timestamp: "کەمێک لەمەوبەر",
+          timestamp: createdAt.toLocaleString("ckb", { dateStyle: "medium", timeStyle: "short" }),
+          timestampEn: createdAt.toLocaleString("en", { dateStyle: "medium", timeStyle: "short" }),
+          createdAt: c.created_at,
           likes: 0,
         };
       });
@@ -64,6 +74,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 // POST /api/posts/[id]/comments
 export async function POST(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
+  let authenticatedUserId: string | null = null;
 
   try {
     const body = await request.json();
@@ -83,6 +94,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     } = await supabase.auth.getUser();
 
     if (user) {
+      authenticatedUserId = user.id;
       const { data: comment, error } = await supabase
         .from("post_comments")
         .insert({
@@ -106,6 +118,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       if (comment && !error) {
         const author = (comment as any).profiles || {};
+        const createdAt = new Date(comment.created_at);
         const formatted: Comment = {
           id: comment.id,
           author: {
@@ -118,27 +131,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             verified: true,
           },
           content: comment.content,
-          timestamp: "کەمێک لەمەوبەر",
+          timestamp: createdAt.toLocaleString("ckb", { dateStyle: "medium", timeStyle: "short" }),
+          timestampEn: createdAt.toLocaleString("en", { dateStyle: "medium", timeStyle: "short" }),
+          createdAt: comment.created_at,
           likes: 0,
         };
 
-        // Notify post author if different
         const { data: post } = await supabase
           .from("posts")
           .select("author_id, comments_count")
           .eq("id", id)
           .maybeSingle();
-
-        if (post && post.author_id !== user.id) {
-          await supabase.from("notifications").insert({
-            recipient_id: post.author_id,
-            actor_id: user.id,
-            type: "comment",
-            entity_type: "post",
-            entity_id: id,
-            content: `لێدوانی نووسی: "${trimmed.slice(0, 40)}"`,
-          });
-        }
 
         try {
           revalidateCacheTag(CACHE_TAGS.feed);
@@ -152,6 +155,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
   } catch (err) {
     console.error("POST /api/posts/[id]/comments error:", err);
+  }
+
+  if (authenticatedUserId) {
+    return NextResponse.json({ error: "Comment could not be saved. Please try again." }, { status: 500 });
   }
 
   // Fallback to mockDb

@@ -39,6 +39,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     if (post && !error) {
       const author = (post as any).profiles || {};
+      const { data: { user } } = await supabase.auth.getUser();
+      let isLiked = false;
+      let isReposted = false;
+      if (user) {
+        const [{ data: like }, { data: repost }] = await Promise.all([
+          supabase.from("post_likes").select("user_id").eq("post_id", id).eq("user_id", user.id).maybeSingle(),
+          supabase.from("post_reposts").select("user_id").eq("post_id", id).eq("user_id", user.id).maybeSingle(),
+        ]);
+        isLiked = Boolean(like);
+        isReposted = Boolean(repost);
+      }
       return NextResponse.json({
         id: post.id,
         author: {
@@ -59,10 +70,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         likesCount: post.likes_count || 0,
         commentsCount: post.comments_count || 0,
         sharesCount: post.shares_count || 0,
-        isLiked: false,
+        isLiked,
+        isReposted,
         isSaved: false,
         comments: [],
-      });
+      }, { headers: { "Cache-Control": "private, no-store" } });
     }
   } catch (err) {
     console.error("GET /api/posts/[id] Supabase error:", err);
@@ -146,7 +158,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     // 1. Fetch post info to check for media in R2
     const { data: postToDelete } = await supabase
       .from("posts")
-      .select("media_url, author_id")
+      .select("media_url, author_id, profiles:author_id(sequential_id)")
       .eq("id", id)
       .maybeSingle();
 
@@ -172,6 +184,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         revalidateCacheTag(CACHE_TAGS.feed);
         if (postToDelete?.author_id) {
           revalidateCacheTag(CACHE_TAGS.profile(postToDelete.author_id));
+          const profile = postToDelete.profiles as { sequential_id?: number | string } | null;
+          if (profile?.sequential_id) revalidateCacheTag(CACHE_TAGS.profile(String(profile.sequential_id)));
         }
       } catch (e) {}
 

@@ -16,7 +16,6 @@ import {
   Link as LinkIcon,
   Loader2,
   MapPin,
-  MessageSquare,
   Plus,
   Radio,
   Settings,
@@ -40,7 +39,8 @@ import {
   sanitizeKurdishLocation,
   VALID_LOCATIONS,
 } from "@/lib/kurdish-cities";
-import { compressAvatar, compressBanner } from "@/lib/image-compress";
+import { compressAvatar, compressBanner, cropImageToAspect } from "@/lib/image-compress";
+import { ImageCropDialog } from "./image-crop-dialog";
 
 import { User } from "../feed/types";
 import { useCurrentUser } from "@/lib/hooks/use-current-user";
@@ -53,6 +53,7 @@ interface ProfilePageProps {
   onLikeToggle?: (postId: string) => void;
   onAddComment?: (postId: string, commentText: string) => void;
   onOpenDialog?: (post: Post) => void;
+  onViewProfile?: (userId: string) => void;
   onBackToFeed?: () => void;
   onOpenSettings?: () => void;
 }
@@ -65,6 +66,7 @@ export function ProfilePage({
   onLikeToggle,
   onAddComment,
   onOpenDialog,
+  onViewProfile,
   onBackToFeed,
   onOpenSettings,
 }: ProfilePageProps) {
@@ -86,12 +88,19 @@ export function ProfilePage({
   const [joinedDate, setJoinedDate] = useState("");
   const [followersCount, setFollowersCount] = useState("0");
   const [followingCount, setFollowingCount] = useState(0);
+  const [mediaItems, setMediaItems] = useState<{ id: string; url: string; created_at: string }[]>([]);
+  const [hasMoreMedia, setHasMoreMedia] = useState(false);
+  const [isLoadingMoreMedia, setIsLoadingMoreMedia] = useState(false);
+  const [resonanceCount, setResonanceCount] = useState(0);
+  const mediaSectionRef = useRef<HTMLDivElement>(null);
 
   // Profile ownership & follow state (IDOR protection)
   const [profileUuid, setProfileUuid] = useState<string | null>(null);
   const [currentAuthUserId, setCurrentAuthUserId] = useState<string | null>(null);
   const [currentAuthSeqId, setCurrentAuthSeqId] = useState<string | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [isFollowStateLoading, setIsFollowStateLoading] = useState(true);
+  const [isFollowPending, setIsFollowPending] = useState(false);
 
   // Fetch logged-in user identity from Supabase Auth
   useEffect(() => {
@@ -119,20 +128,83 @@ export function ProfilePage({
     (activeUser && (activeUser.id === String(userId) || (profileUuid && activeUser.id === profileUuid)))
   );
 
-  const handleToggleFollow = () => {
-    setIsFollowing((prev) => !prev);
-    setFollowersCount((prev) => {
-      const cur = parseInt(prev.replace(/,/g, ""), 10) || 0;
-      return String(isFollowing ? Math.max(0, cur - 1) : cur + 1);
-    });
-    toast.add({
-      title: isFollowing ? "فۆڵۆو لادرا" : "فۆڵۆو کرا! ✨",
-      description: isFollowing
-        ? `ئیتر بەدواداچوون بۆ ${name} ناکەیت.`
-        : `دەستت کرد بە فۆڵۆوکردنی ${name}.`,
-      type: "success",
-    });
+  const handleToggleFollow = async () => {
+    if (isFollowPending || isFollowStateLoading) return;
+    if (!currentAuthUserId) {
+      toast.add({ title: "چوونەژوورەوە پێویستە", description: "بۆ فۆڵۆکردن سەرەتا بچۆ ژوورەوە.", type: "error" });
+      return;
+    }
+    if (!profileUuid || isOwnProfile) return;
+
+    const previousState = isFollowing;
+    const nextState = !previousState;
+    const previousCount = parseInt(followersCount.replace(/,/g, ""), 10) || 0;
+    setIsFollowPending(true);
+    setIsFollowing(nextState);
+    setFollowersCount(String(Math.max(0, previousCount + (nextState ? 1 : -1))));
+
+    try {
+      const response = await fetch(`/api/users/${encodeURIComponent(profileUuid)}/follow`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isFollowing: nextState }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "نەتوانرا دۆخی فۆڵۆکردن بگۆڕدرێت");
+      setIsFollowing(Boolean(data.isFollowing));
+      setFollowersCount(String(data.followersCount ?? previousCount));
+      toast.add({
+        title: data.isFollowing ? "فۆڵۆوت کرد! ✨" : "فۆڵۆو لادرا",
+        description: data.isFollowing ? `دەستت کرد بە فۆڵۆکردنی ${name}.` : `ئیتر بەدواداچوون بۆ ${name} ناکەیت.`,
+        type: "success",
+      });
+    } catch (error) {
+      setIsFollowing(previousState);
+      setFollowersCount(String(previousCount));
+      toast.add({
+        title: "نەتوانرا فۆڵۆکردن بگۆڕدرێت",
+        description: error instanceof Error ? error.message : "تکایە دووبارە هەوڵ بدەرەوە.",
+        type: "error",
+      });
+    } finally {
+      setIsFollowPending(false);
+    }
   };
+
+  useEffect(() => {
+    if (!profileUuid) {
+      setIsFollowing(false);
+      setIsFollowStateLoading(true);
+      return;
+    }
+    if (isOwnProfile) {
+      setIsFollowing(false);
+      setIsFollowStateLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setIsFollowStateLoading(true);
+    fetch(`/api/users/${encodeURIComponent(profileUuid)}/follow`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Follow state unavailable");
+        setIsFollowing(Boolean(data.isFollowing));
+        if (typeof data.followersCount === "number") setFollowersCount(String(data.followersCount));
+      })
+      .catch((error) => {
+        if (error.name !== "AbortError") console.error("Could not load profile follow state:", error);
+        if (error.name !== "AbortError") setIsFollowing(false);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsFollowStateLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [profileUuid, isOwnProfile]);
 
   // Edit form state
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -154,10 +226,13 @@ export function ProfilePage({
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
 
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!isOwnProfile) return;
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       toast.add({
@@ -168,10 +243,15 @@ export function ProfilePage({
       return;
     }
 
+    setAvatarFile(file);
+  };
+
+  const handleAvatarConfirm = async (positionX: number, positionY: number) => {
+    if (!avatarFile) return;
     try {
       setIsUploadingAvatar(true);
-      // 1. Client-side canvas compression: max 200KB @ 400x400
-      const compressed = await compressAvatar(file);
+      const cropped = await cropImageToAspect(avatarFile, 1, positionX, positionY);
+      const compressed = await compressAvatar(cropped);
 
       // 2. Upload to R2 endpoint
       const formData = new FormData();
@@ -189,6 +269,7 @@ export function ProfilePage({
 
       const data = await res.json();
       setAvatar(data.url);
+      setAvatarFile(null);
       toast.add({
         title: "وێنەی پڕۆفایل نوێکرایەوە! ✨",
         description: "وێنەی پڕۆفایلەکەت بە سەرکەوتوویی بارکرا و وێنە کۆنەکە سڕدرایەوە.",
@@ -205,9 +286,10 @@ export function ProfilePage({
     }
   };
 
-  const handleCoverChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!isOwnProfile) return;
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       toast.add({
@@ -218,10 +300,15 @@ export function ProfilePage({
       return;
     }
 
+    setCoverFile(file);
+  };
+
+  const handleCoverConfirm = async (positionX: number, positionY: number) => {
+    if (!coverFile) return;
     try {
       setIsUploadingCover(true);
-      // 1. Client-side canvas compression: max 500KB @ 1600x600
-      const compressed = await compressBanner(file);
+      const cropped = await cropImageToAspect(coverFile, 1600 / 600, positionX, positionY);
+      const compressed = await compressBanner(cropped);
 
       // 2. Upload to R2 endpoint
       const formData = new FormData();
@@ -239,6 +326,7 @@ export function ProfilePage({
 
       const data = await res.json();
       setCoverPhoto(data.url);
+      setCoverFile(null);
       toast.add({
         title: "وێنەی بەرگ نوێکرایەوە! 🌄",
         description: "وێنەی بەرگی پڕۆفایلەکەت بە سەرکەوتوویی بارکرا و وێنە کۆنەکە سڕدرایەوە.",
@@ -264,6 +352,7 @@ export function ProfilePage({
       .then((res) => res.json())
       .then((data) => {
         if (data && !data.error) {
+          setIsFollowing(false);
           setProfileUuid(data.uuid || null);
           setName(data.name || "");
           setHandle(data.handle || "");
@@ -278,6 +367,9 @@ export function ProfilePage({
             setFollowersCount(String(data.stats.followers ?? "0"));
             setFollowingCount(Number(data.stats.following ?? 0));
           }
+          setMediaItems(Array.isArray(data.media) ? data.media : []);
+          setHasMoreMedia(Array.isArray(data.media) && data.media.length === 24);
+          setResonanceCount(Number(data.resonanceCount || 0));
         } else {
           // Fallback to defaults
           setName(CURRENT_USER_PROFILE.name);
@@ -469,6 +561,25 @@ export function ProfilePage({
 
   const [isCopied, setIsCopied] = useState(false);
 
+  const loadMoreMedia = async () => {
+    const lastItem = mediaItems.at(-1);
+    if (!profileUuid || !lastItem || isLoadingMoreMedia || !hasMoreMedia) return;
+    setIsLoadingMoreMedia(true);
+    try {
+      const params = new URLSearchParams({ beforeDate: lastItem.created_at, beforeId: lastItem.id, limit: "24" });
+      const response = await fetch(`/api/users/${profileUuid}/media?${params.toString()}`);
+      const data = await response.json();
+      if (!response.ok || !Array.isArray(data.media)) throw new Error(data.error || "Unable to load media");
+      setMediaItems((previous) => [...previous, ...data.media]);
+      setHasMoreMedia(Boolean(data.hasMore));
+    } catch (error) {
+      console.error("Unable to load more profile media:", error);
+      toast.add({ title: language === "en" ? "Could not load more photos" : "نەتوانرا وێنەی زیاتر بکرێتەوە", type: "error" });
+    } finally {
+      setIsLoadingMoreMedia(false);
+    }
+  };
+
   const handleShareProfile = () => {
     const shareUrl = `${window.location.origin}${window.location.pathname}?page=profile&id=${userId}`;
     navigator.clipboard?.writeText?.(shareUrl);
@@ -482,6 +593,20 @@ export function ProfilePage({
 
   return (
     <div dir={dir} className={`w-full max-w-5xl mx-auto pb-16 px-2 sm:px-4 ${dir === "rtl" ? "text-right" : "text-left"}`}>
+      <ImageCropDialog
+        file={avatarFile}
+        kind="avatar"
+        isSaving={isUploadingAvatar}
+        onCancel={() => { if (!isUploadingAvatar) setAvatarFile(null); }}
+        onConfirm={handleAvatarConfirm}
+      />
+      <ImageCropDialog
+        file={coverFile}
+        kind="cover"
+        isSaving={isUploadingCover}
+        onCancel={() => { if (!isUploadingCover) setCoverFile(null); }}
+        onConfirm={handleCoverConfirm}
+      />
       {/* Cover Photo Header with Hover to Change */}
       <div
         onClick={() => isOwnProfile && !isUploadingCover && coverInputRef.current?.click()}
@@ -584,7 +709,7 @@ export function ProfilePage({
             />
           </div>
 
-          {/* Action Buttons: Edit Profile & Share, or Follow & Message if someone else */}
+          {/* Action Buttons: Edit Profile & Share, or Follow if someone else */}
           <div className="flex items-center gap-2 pt-3 shrink-0">
             {isOwnProfile ? (
               <Button
@@ -600,13 +725,19 @@ export function ProfilePage({
                 <Button
                   size="sm"
                   onClick={handleToggleFollow}
+                  disabled={isFollowStateLoading || isFollowPending}
+                  aria-pressed={isFollowing}
                   className={`rounded-full gap-1.5 text-xs font-semibold px-4 h-9 cursor-pointer transition-all ${
-                    isFollowing
+                    isFollowStateLoading || isFollowPending
+                      ? "opacity-70 cursor-wait"
+                      : isFollowing
                       ? "border border-border bg-card text-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
                       : "bg-primary text-primary-foreground hover:bg-primary/90"
                   }`}
                 >
-                  {isFollowing ? (
+                  {isFollowPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : isFollowing ? (
                     <>
                       <Check className="h-3.5 w-3.5" />
                       <span>فۆڵۆوکراوە</span>
@@ -619,21 +750,6 @@ export function ProfilePage({
                   )}
                 </Button>
 
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    toast.add({
-                      title: "نامەکان",
-                      description: "بەشی نامەگۆڕینەوە بەمزووانە چالاک دەبێت.",
-                      type: "info",
-                    });
-                  }}
-                  className="rounded-full gap-1.5 text-xs font-semibold px-3.5 h-9 cursor-pointer"
-                >
-                  <MessageSquare className="h-3.5 w-3.5" />
-                  <span>پەیام</span>
-                </Button>
               </>
             )}
 
@@ -1075,22 +1191,18 @@ export function ProfilePage({
             <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
               {language === "en" ? "Creator Profile" : "ناساندنی دروستکەر"}
             </h3>
-            <p className="text-xs text-foreground/80 leading-relaxed">
-              {language === "en"
-                ? "Spatial interaction designer & UX engineer at Pola."
-                : "دیزاینەری شێوازی کارلێکی شوێنی و ئەندازیاری ڕووکاری بەکارهێنەر لە پۆلا."}
-            </p>
+            <p className="text-xs text-foreground/80 leading-relaxed">{role || bio || (language === "en" ? "Pola community member" : "ئەندامی کۆمەڵگەی پۆلا")}</p>
             <div className="border-t border-border/50 pt-2.5 space-y-2 text-xs">
               <div className="flex items-center justify-between text-muted-foreground">
-                <span>{language === "en" ? "Resonance Rank" : "پلەی دەنگدانەوە"}</span>
+                <span>{language === "en" ? "Post likes" : "پەسەندکردنی پۆستەکان"}</span>
                 <span className="font-semibold text-foreground">
-                  {language === "en" ? "Top 2% of Creators" : "لە ٢٪ی دروستکەرە باڵاکان"}
+                  {resonanceCount.toLocaleString(language === "en" ? "en" : "ckb-IQ")}
                 </span>
               </div>
               <div className="flex items-center justify-between text-muted-foreground">
-                <span>{language === "en" ? "Account Status" : "دۆخی هەژمار"}</span>
-                <span className="font-semibold text-emerald-500">
-                  {language === "en" ? "Verified Partner" : "هاوبەشی پشتڕاستکراو"}
+                <span>{language === "en" ? "Joined Pola" : "بەشداربووە لە پۆلا"}</span>
+                <span className="font-semibold text-foreground">
+                  {joinedDate || "—"}
                 </span>
               </div>
             </div>
@@ -1102,29 +1214,37 @@ export function ProfilePage({
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 {language === "en" ? "Featured Gallery" : "پێشانگای هەڵبژێردراو"}
               </h3>
-              <span className="text-[11px] font-semibold text-primary hover:underline cursor-pointer">
+              <button type="button" onClick={() => {
+                setActiveTab("media");
+                requestAnimationFrame(() => mediaSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+              }} className="text-[11px] font-semibold text-primary hover:underline cursor-pointer">
                 {language === "en" ? "See all" : "هەمووی ببینە"}
-              </span>
+              </button>
             </div>
             <div className="grid grid-cols-3 gap-2">
-              {CURRENT_USER_PROFILE.featuredPhotos.map((photo, index) => (
+              {mediaItems.slice(0, 6).map((photo) => (
                 <div
-                  key={index}
+                  key={photo.id}
                   className="aspect-square rounded-xl overflow-hidden bg-muted border border-border/40 group cursor-pointer"
                 >
                   <img
-                    src={photo}
-                    alt={`Featured ${index}`}
+                    src={photo.url}
+                    alt={language === "en" ? "Post image" : "وێنەی پۆست"}
+                    loading="lazy"
+                    decoding="async"
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                   />
                 </div>
               ))}
+              {mediaItems.length === 0 && <p className="col-span-3 py-5 text-center text-xs text-muted-foreground">
+                {language === "en" ? "No public photos yet" : "هێشتا هیچ وێنەیەکی گشتی نییە"}
+              </p>}
             </div>
           </div>
         </div>
 
         {/* Right Column: "What I Posted" Feed Stream or Media Tab */}
-        <div className="lg:col-span-2 space-y-4">
+        <div ref={mediaSectionRef} id="profile-media" className="lg:col-span-2 space-y-4 scroll-mt-6">
           {activeTab === "posts" && (
             <>
               {/* Profile Post Studio Trigger - only on own profile */}
@@ -1138,6 +1258,8 @@ export function ProfilePage({
                   <PostCard
                     key={post.id}
                     post={post}
+                    currentUser={activeUser}
+                    onViewProfile={onViewProfile}
                     onLikeToggle={onLikeToggle}
                     onAddComment={onAddComment}
                     onOpenDialog={onOpenDialog}
@@ -1161,20 +1283,26 @@ export function ProfilePage({
 
           {activeTab === "media" && (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {CURRENT_USER_PROFILE.featuredPhotos.concat(
-                myPosts.map((p) => p.mediaUrl).filter(Boolean) as string[]
-              ).map((img, i) => (
+              {mediaItems.map((item) => (
                 <div
-                  key={i}
+                  key={item.id}
                   className="aspect-square rounded-2xl overflow-hidden bg-muted border border-border/60 group cursor-pointer shadow-xs"
                 >
                   <img
-                    src={img}
-                    alt={`Media ${i}`}
+                    src={item.url}
+                    alt={language === "en" ? "Post image" : "وێنەی پۆست"}
+                    loading="lazy"
+                    decoding="async"
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                   />
                 </div>
               ))}
+              {mediaItems.length === 0 && <div className="col-span-full rounded-2xl border border-dashed border-border p-8 text-center text-xs text-muted-foreground">
+                {language === "en" ? "No public photos shared yet" : "هێشتا هیچ وێنەیەکی گشتی بڵاونەکراوەتەوە"}
+              </div>}
+              {hasMoreMedia && <button type="button" disabled={isLoadingMoreMedia} onClick={loadMoreMedia} className="col-span-full rounded-xl border border-border px-4 py-2 text-xs font-semibold text-primary hover:bg-muted/50 disabled:opacity-50">
+                {isLoadingMoreMedia ? (language === "en" ? "Loading…" : "باردەکرێت...") : (language === "en" ? "Load more photos" : "وێنەی زیاتر ببینە")}
+              </button>}
             </div>
           )}
         </div>

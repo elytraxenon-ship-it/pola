@@ -17,6 +17,44 @@ export interface CompressOptions {
   mimeType?: "image/webp" | "image/jpeg";
 }
 
+/** Crop an image around a chosen focal point before resizing/compressing it. */
+export async function cropImageToAspect(
+  source: File | Blob,
+  aspectRatio: number,
+  positionX = 50,
+  positionY = 50,
+): Promise<Blob> {
+  const bitmap = await createImageBitmap(source);
+  const sourceAspect = bitmap.width / bitmap.height;
+  let cropWidth = bitmap.width;
+  let cropHeight = bitmap.height;
+
+  if (sourceAspect > aspectRatio) cropWidth = bitmap.height * aspectRatio;
+  else cropHeight = bitmap.width / aspectRatio;
+
+  const cropX = (bitmap.width - cropWidth) * Math.max(0, Math.min(100, positionX)) / 100;
+  const cropY = (bitmap.height - cropHeight) * Math.max(0, Math.min(100, positionY)) / 100;
+  const scale = Math.min(1, 2400 / Math.max(cropWidth, cropHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(cropWidth * scale));
+  canvas.height = Math.max(1, Math.round(cropHeight * scale));
+  const context = canvas.getContext("2d");
+  if (!context) {
+    bitmap.close();
+    throw new Error("وێنەکە نەخوێندرایەوە");
+  }
+
+  context.drawImage(bitmap, cropX, cropY, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("نەتوانرا وێنەکە ئامادە بکرێت"));
+    }, "image/webp", 0.9);
+  });
+}
+
 /**
  * Compress and resize an image File/Blob client-side.
  * Returns a Blob with content type matching `mimeType`.
@@ -50,7 +88,11 @@ export async function compressImage(
   }
 
   // ── Draw onto offscreen canvas ────────────────────────────────────────────
-  const canvas = new OffscreenCanvas(outW, outH);
+  // HTMLCanvasElement works on mobile Safari as well as Chromium browsers;
+  // OffscreenCanvas is still missing from some supported mobile webviews.
+  const canvas = document.createElement("canvas");
+  canvas.width = outW;
+  canvas.height = outH;
   const ctx = canvas.getContext("2d")!;
   ctx.drawImage(bitmap, 0, 0, outW, outH);
   bitmap.close();
@@ -60,7 +102,13 @@ export async function compressImage(
   let blob: Blob;
 
   do {
-    blob = await canvas.convertToBlob({ type: mimeType, quality });
+    blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (result) => result ? resolve(result) : reject(new Error("Could not encode image")),
+        mimeType,
+        quality,
+      );
+    });
     if (blob.size <= maxBytes) break;
     quality -= 0.05;
   } while (quality > 0.3);
@@ -103,6 +151,17 @@ export function compressPostImage(file: File | Blob): Promise<Blob> {
     maxHeight: 1200,
     quality: 0.84,
     maxBytes: 700 * 1024,
+    mimeType: "image/webp",
+  });
+}
+
+/** Story images use a fixed portrait frame and a bounded upload size. */
+export function compressStoryImage(file: File | Blob): Promise<Blob> {
+  return compressImage(file, {
+    maxWidth: 1080,
+    maxHeight: 1920,
+    quality: 0.82,
+    maxBytes: 1536 * 1024,
     mimeType: "image/webp",
   });
 }

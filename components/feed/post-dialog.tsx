@@ -1,17 +1,14 @@
 "use client";
 
 import {
-  Bookmark,
   Flame,
   Globe2,
   MessageSquare,
-  Repeat2,
   Send,
   Share2,
-  Smile,
   Sparkles,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Avatar10 } from "@/components/motion/avatar";
 import { Button } from "@/components/motion/button";
 import {
@@ -21,16 +18,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { CURRENT_USER } from "./dummy-data";
-import { Comment, Post } from "./types";
+import { Comment, Post, User } from "./types";
 import { useLanguage } from "@/lib/language-context";
 import { toast } from "@/components/ui/toast";
+import { EmojiPicker } from "./emoji-picker";
 
 interface PostDialogProps {
   post: Post | null;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onAddComment?: (postId: string, commentText: string) => void;
-  onLikeToggle?: (postId: string) => void;
+  onLikeToggle?: (postId: string, isLiked: boolean) => void;
+  currentUser?: User;
+  onViewProfile?: (userId: string) => void;
 }
 
 export function PostDialog({
@@ -39,9 +39,59 @@ export function PostDialog({
   onOpenChange,
   onAddComment,
   onLikeToggle,
+  currentUser,
+  onViewProfile,
 }: PostDialogProps) {
   const { language, dir } = useLanguage();
   const [commentText, setCommentText] = useState("");
+  const commentInputRef = useRef<HTMLInputElement>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentsPostId, setCommentsPostId] = useState("");
+  const [isLoadingOlderComments, setIsLoadingOlderComments] = useState(false);
+  const [hasMoreComments, setHasMoreComments] = useState(false);
+  const postId = post?.id;
+  const visibleComments = commentsPostId === postId ? comments : [];
+  const isLoadingComments = isOpen && Boolean(postId) && commentsPostId !== postId;
+  const commenter = currentUser ?? CURRENT_USER;
+
+  useEffect(() => {
+    if (!isOpen || !postId) return;
+    const controller = new AbortController();
+    fetch(`/api/posts/${encodeURIComponent(postId)}/comments?limit=30`, { signal: controller.signal, cache: "no-store" })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok || !Array.isArray(data)) throw new Error("Could not load comments");
+        setComments(data.reverse());
+        setCommentsPostId(postId);
+        setHasMoreComments(data.length === 30);
+      })
+      .catch((error) => {
+        if (error.name !== "AbortError") console.error("Could not load post comments:", error);
+        if (error.name !== "AbortError") {
+          setComments([]);
+          setCommentsPostId(postId);
+          setHasMoreComments(false);
+        }
+      });
+    return () => controller.abort();
+  }, [isOpen, postId]);
+
+  const loadOlderComments = async () => {
+    const cursor = visibleComments[0]?.createdAt;
+    if (!post || !cursor || isLoadingOlderComments) return;
+    setIsLoadingOlderComments(true);
+    try {
+      const response = await fetch(`/api/posts/${encodeURIComponent(post.id)}/comments?limit=30&before=${encodeURIComponent(cursor)}`);
+      const data = await response.json();
+      if (!response.ok || !Array.isArray(data)) throw new Error("Could not load older comments");
+      setComments((previous) => [...data.reverse(), ...previous]);
+      setHasMoreComments(data.length === 30);
+    } catch (error) {
+      console.error("Could not load older comments:", error);
+    } finally {
+      setIsLoadingOlderComments(false);
+    }
+  };
 
   if (!post) return null;
 
@@ -67,8 +117,28 @@ export function PostDialog({
     e.preventDefault();
     if (!commentText.trim()) return;
 
-    onAddComment?.(post.id, commentText.trim());
+    const content = commentText.trim();
+    setComments((prev) => [...prev, {
+      id: `pending-${Date.now()}`,
+      author: currentUser || CURRENT_USER,
+      content,
+      timestamp: language === "en" ? "Just now" : "ئێستا",
+      likes: 0,
+    }]);
+    onAddComment?.(post.id, content);
     setCommentText("");
+  };
+
+  const insertEmoji = (emoji: string) => {
+    const input = commentInputRef.current;
+    const start = input?.selectionStart ?? commentText.length;
+    const end = input?.selectionEnd ?? commentText.length;
+    const nextValue = `${commentText.slice(0, start)}${emoji}${commentText.slice(end)}`;
+    setCommentText(nextValue);
+    requestAnimationFrame(() => {
+      input?.focus();
+      input?.setSelectionRange(start + emoji.length, start + emoji.length);
+    });
   };
 
   return (
@@ -78,16 +148,20 @@ export function PostDialog({
         <DialogHeader className="p-4 pb-3 border-b border-border/60 bg-muted/20 shrink-0">
           <div className="flex items-center justify-between pr-8">
             <div className="flex items-center gap-3">
-              <Avatar10
-                name={post.author.name}
-                avatar={post.author.avatar}
-                size="size-10"
-                online={post.author.online}
-              />
+              <button type="button" onClick={() => onViewProfile?.(post.author.id)} aria-label={`View ${post.author.name}'s profile`} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                <Avatar10
+                  name={post.author.name}
+                  avatar={post.author.avatar}
+                  size="size-10"
+                  online={post.author.online}
+                />
+              </button>
               <div>
                 <div className="flex items-center gap-1.5">
                   <DialogTitle className="font-bold text-sm text-foreground">
-                    {post.author.name}
+                    <button type="button" onClick={() => onViewProfile?.(post.author.id)} className="hover:underline">
+                      {post.author.name}
+                    </button>
                   </DialogTitle>
                   {post.author.verified && (
                     <Sparkles className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
@@ -129,7 +203,7 @@ export function PostDialog({
 
           {/* Post Media (if any) */}
           {post.mediaUrl && (
-            <div className="overflow-hidden rounded-xl bg-muted/30 border border-border/50 max-h-80">
+            <div className="aspect-[4/3] w-full overflow-hidden rounded-xl border border-border/50 bg-muted/30">
               <img
                 src={post.mediaUrl}
                 alt="Post attachment"
@@ -142,7 +216,7 @@ export function PostDialog({
           <div className="flex items-center justify-between border-y border-border/50 py-2 text-xs">
             <div className="flex items-center gap-2">
               <button
-                onClick={() => onLikeToggle?.(post.id)}
+                onClick={() => onLikeToggle?.(post.id, !post.isLiked)}
                 className={`flex items-center gap-1.5 rounded-full px-3 py-1 font-semibold transition-colors cursor-pointer ${
                   post.isLiked
                     ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
@@ -161,8 +235,8 @@ export function PostDialog({
                 <MessageSquare className="h-4 w-4" />
                 <span>
                   {language === "en"
-                    ? `${post.comments.length} Comments`
-                    : `${post.comments.length} لێدوان`}
+                    ? `${post.commentsCount} Comments`
+                    : `${post.commentsCount} لێدوان`}
                 </span>
               </div>
             </div>
@@ -182,13 +256,15 @@ export function PostDialog({
               dir === "rtl" ? "text-right" : "text-left"
             }`}>
               {language === "en"
-                ? `Comments & Echoes (${post.comments.length})`
-                : `لێدوان و وەڵامەکان (${post.comments.length})`}
+                ? `Comments (${visibleComments.length})`
+                : `لێدوانەکان (${visibleComments.length})`}
             </h4>
 
-            {post.comments.length > 0 ? (
+            {isLoadingComments ? (
+              <p className="py-5 text-center text-xs text-muted-foreground">{language === "en" ? "Loading comments…" : "لێدوانەکان باردەکرێن..."}</p>
+            ) : visibleComments.length > 0 ? (
               <div className="space-y-3">
-                {post.comments.map((comment: Comment) => (
+                {visibleComments.map((comment: Comment) => (
                   <div key={comment.id} className="flex gap-2.5 text-xs">
                     <Avatar10
                       name={comment.author.name}
@@ -212,6 +288,9 @@ export function PostDialog({
                     </div>
                   </div>
                 ))}
+                {hasMoreComments && <button type="button" disabled={isLoadingOlderComments} onClick={loadOlderComments} className="w-full py-2 text-xs font-semibold text-primary hover:underline disabled:opacity-50">
+                  {isLoadingOlderComments ? (language === "en" ? "Loading…" : "باردەکرێت...") : (language === "en" ? "Load older comments" : "لێدوانە کۆنترەکان ببینە")}
+                </button>}
               </div>
             ) : (
               <div className="py-6 text-center text-xs text-muted-foreground">
@@ -227,12 +306,13 @@ export function PostDialog({
         <div className="p-3 border-t border-border/60 bg-muted/20 shrink-0">
           <form onSubmit={handleCommentSubmit} className="flex items-center gap-2">
             <Avatar10
-              name={CURRENT_USER.name}
-              avatar={CURRENT_USER.avatar}
+              name={commenter.name}
+              avatar={commenter.avatar}
               size="size-8.5"
             />
             <div className="relative flex-1">
               <input
+                ref={commentInputRef}
                 type="text"
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
@@ -245,19 +325,12 @@ export function PostDialog({
                   dir === "rtl" ? "pl-9 text-right" : "pr-9 text-left"
                 } text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-primary/40`}
               />
-              <button
-                type="button"
-                className={`absolute ${
-                  dir === "rtl" ? "left-3" : "right-3"
-                } top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground`}
-              >
-                <Smile className="h-3.5 w-3.5" />
-              </button>
+              <EmojiPicker dir={dir} language={language} onSelect={insertEmoji} />
             </div>
             <Button
               type="submit"
               size="sm"
-              disabled={!commentText.trim()}
+                disabled={!commentText.trim() || isLoadingComments}
               className="rounded-full px-3.5 h-8.5 text-xs font-semibold"
             >
               <Send className={`h-3.5 w-3.5 ${dir === "rtl" ? "rotate-180" : ""}`} />

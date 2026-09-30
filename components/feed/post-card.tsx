@@ -3,39 +3,39 @@
 import {
   Bookmark,
   Check,
-  CheckCircle2,
   Copy,
   Edit3,
   Flame,
-  Maximize2,
   MessageSquare,
   MoreHorizontal,
   Repeat2,
   Send,
   Share2,
-  Smile,
   Sparkles,
   Trash2,
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Avatar10 } from "@/components/motion/avatar";
 import { Button } from "@/components/motion/button";
 import { toast } from "@/components/ui/toast";
 import { CURRENT_USER } from "./dummy-data";
-import { Comment, Post } from "./types";
+import { Comment, Post, User } from "./types";
 import { useLanguage } from "@/lib/language-context";
+import { EmojiPicker } from "./emoji-picker";
 
 interface PostCardProps {
   post: Post;
-  onLikeToggle?: (postId: string) => void;
+  onLikeToggle?: (postId: string, isLiked: boolean) => void;
   onAddComment?: (postId: string, commentText: string) => void;
   onSaveToggle?: (postId: string) => void;
   onOpenDialog?: (post: Post) => void;
   onEditPost?: (postId: string, newContent: string) => void;
   onDeletePost?: (postId: string) => void;
-  onRepost?: (postId: string) => void;
+  onRepost?: (postId: string, delta: 1 | -1 | 0, sharesCount?: number) => void;
+  currentUser?: User;
+  onViewProfile?: (userId: string) => void;
 }
 
 export function PostCard({
@@ -47,12 +47,16 @@ export function PostCard({
   onEditPost,
   onDeletePost,
   onRepost,
+  currentUser,
+  onViewProfile,
 }: PostCardProps) {
   const { language, dir } = useLanguage();
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState("");
-  const [isLikedLocal, setIsLikedLocal] = useState(post.isLiked ?? false);
-  const [likesCountLocal, setLikesCountLocal] = useState(post.likesCount);
+  const commentInputRef = useRef<HTMLInputElement>(null);
+  const isLikedLocal = post.isLiked ?? false;
+  const likesCountLocal = post.likesCount;
+  const commenter = currentUser ?? CURRENT_USER;
   const [isSavedLocal, setIsSavedLocal] = useState(post.isSaved ?? false);
 
   // 3-Dot Menu & Edit/Delete States
@@ -62,11 +66,23 @@ export function PostCard({
   const [localContent, setLocalContent] = useState(post.content);
 
   // Repost State
-  const [isReposted, setIsReposted] = useState(false);
-  const [sharesCountLocal, setSharesCountLocal] = useState(post.sharesCount);
+  const [localIsReposted, setLocalIsReposted] = useState(post.isReposted ?? false);
+  const [localSharesCount, setLocalSharesCount] = useState(post.sharesCount);
+  const isReposted = onRepost ? (post.isReposted ?? localIsReposted) : localIsReposted;
+  const sharesCountLocal = onRepost ? post.sharesCount : localSharesCount;
   const [showRepostModal, setShowRepostModal] = useState(false);
   const [showUndoRepostModal, setShowUndoRepostModal] = useState(false);
   const [repostCaption, setRepostCaption] = useState("");
+  const [repostPending, setRepostPending] = useState(false);
+
+  const updateRepostState = (next: boolean, delta: 1 | -1, count?: number) => {
+    if (onRepost) {
+      onRepost(post.id, delta, count);
+      return;
+    }
+    setLocalIsReposted(next);
+    setLocalSharesCount(count ?? ((previous) => Math.max(0, previous + delta)));
+  };
 
   // Share copied state
   const [isCopied, setIsCopied] = useState(false);
@@ -105,9 +121,8 @@ export function PostCard({
   };
 
   const handleLike = () => {
-    setIsLikedLocal((prev) => !prev);
-    setLikesCountLocal((prev) => (isLikedLocal ? prev - 1 : prev + 1));
-    onLikeToggle?.(post.id);
+    const next = !isLikedLocal;
+    onLikeToggle?.(post.id, next);
   };
 
   const handleSave = () => {
@@ -127,15 +142,25 @@ export function PostCard({
     setShowRepostModal(true);
   };
 
-  const handleConfirmUndoRepost = () => {
-    setIsReposted(false);
-    setSharesCountLocal((prev) => Math.max(0, prev - 1));
+  const handleConfirmUndoRepost = async () => {
+    if (repostPending) return;
+    setRepostPending(true);
+    const previousCount = sharesCountLocal;
+    updateRepostState(false, -1);
     setShowUndoRepostModal(false);
-    fetch(`/api/posts/${post.id}/repost`, {
+    try {
+      const response = await fetch(`/api/posts/${post.id}/repost`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "undo" }),
-    }).catch(() => {});
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Unable to undo repost");
+      updateRepostState(false, -1, result.sharesCount);
+    } catch {
+      updateRepostState(true, 1, previousCount);
+      toast.add({ title: "هەڵە لە لابردنی دووبارەبڵاوکردنەوە", type: "error" });
+    } finally { setRepostPending(false); }
     toast.add({
       title: "دەنگدانەوەکەت لابرا! 🗑️",
       description: "دووبارە بڵاوکردنەوەکەت بەسەرکەوتوویی سڕایەوە.",
@@ -143,16 +168,26 @@ export function PostCard({
     });
   };
 
-  const handleConfirmRepost = () => {
-    setIsReposted(true);
-    setSharesCountLocal((prev) => prev + 1);
+  const handleConfirmRepost = async () => {
+    if (repostPending) return;
+    setRepostPending(true);
+    const previousCount = sharesCountLocal;
+    updateRepostState(true, 1);
     setShowRepostModal(false);
-    onRepost?.(post.id);
-    fetch(`/api/posts/${post.id}/repost`, {
+    onRepost?.(post.id, 1);
+    try {
+      const response = await fetch(`/api/posts/${post.id}/repost`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ caption: repostCaption, action: "repost" }),
-    }).catch(() => {});
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Unable to repost");
+      updateRepostState(true, 1, result.sharesCount);
+    } catch {
+      updateRepostState(false, -1, previousCount);
+      toast.add({ title: "هەڵە لە دووبارەبڵاوکردنەوە", type: "error" });
+    } finally { setRepostPending(false); }
     toast.add({
       title: "پۆستەکە لە پەڕەی تۆ دەنگدانەوەی پەیدا کرد! 🔁",
       description: repostCaption.trim()
@@ -245,22 +280,41 @@ export function PostCard({
     setCommentText("");
   };
 
+  const insertEmoji = (emoji: string) => {
+    const input = commentInputRef.current;
+    const start = input?.selectionStart ?? commentText.length;
+    const end = input?.selectionEnd ?? commentText.length;
+    const nextValue = `${commentText.slice(0, start)}${emoji}${commentText.slice(end)}`;
+    setCommentText(nextValue);
+    requestAnimationFrame(() => {
+      input?.focus();
+      input?.setSelectionRange(start + emoji.length, start + emoji.length);
+    });
+  };
+
   return (
     <article className="group w-full rounded-2xl border border-border/70 bg-card shadow-xs transition-all hover:border-border">
       {/* Header */}
       <div className="flex items-center justify-between p-4 pb-3">
         <div className="flex items-center gap-3">
-          <Avatar10
-            name={post.author.name}
-            avatar={post.author.avatar}
-            size="size-10"
-            online={post.author.online}
-          />
+          <button
+            type="button"
+            onClick={() => onViewProfile?.(post.author.id)}
+            aria-label={`View ${post.author.name}'s profile`}
+            className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <Avatar10
+              name={post.author.name}
+              avatar={post.author.avatar}
+              size="size-10"
+              online={post.author.online}
+            />
+          </button>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="font-bold text-xs md:text-sm text-foreground hover:underline cursor-pointer">
+              <button type="button" onClick={() => onViewProfile?.(post.author.id)} className="font-bold text-xs md:text-sm text-foreground hover:underline cursor-pointer">
                 {post.author.name}
-              </span>
+              </button>
               {post.author.verified && (
                 <Sparkles className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
               )}
@@ -416,11 +470,13 @@ export function PostCard({
 
       {/* Media Attachment */}
       {post.mediaUrl && (
-        <div className="relative mx-3 mb-3 overflow-hidden rounded-xl bg-muted/30 border border-border/50">
+        <div className="relative mx-3 mb-3 aspect-[4/3] overflow-hidden rounded-xl border border-border/50 bg-muted/30">
           <img
             src={post.mediaUrl}
             alt="Pola attachment"
-            className="h-auto max-h-[460px] w-full object-cover transition-transform duration-500 group-hover:scale-[1.01]"
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.01]"
           />
         </div>
       )}
@@ -564,12 +620,13 @@ export function PostCard({
             {/* Comment Form */}
             <form onSubmit={handleCommentSubmit} className="flex items-center gap-2">
               <Avatar10
-                name={CURRENT_USER.name}
-                avatar={CURRENT_USER.avatar}
+                name={commenter.name}
+                avatar={commenter.avatar}
                 size="size-8"
               />
               <div className="relative flex-1">
                 <input
+                  ref={commentInputRef}
                   type="text"
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
@@ -578,14 +635,7 @@ export function PostCard({
                     dir === "rtl" ? "pl-9 text-right" : "pr-9 text-left"
                   } text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-primary/40`}
                 />
-                <button
-                  type="button"
-                  className={`absolute ${
-                    dir === "rtl" ? "left-3" : "right-3"
-                  } top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground`}
-                >
-                  <Smile className="h-3.5 w-3.5" />
-                </button>
+                <EmojiPicker dir={dir} language={language} onSelect={insertEmoji} />
               </div>
               <Button
                 type="submit"
@@ -677,6 +727,7 @@ export function PostCard({
               <div className="flex items-center gap-2 justify-start flex-row-reverse">
                 <button
                   onClick={handleConfirmRepost}
+                  disabled={repostPending}
                   className="flex items-center gap-1.5 rounded-full bg-emerald-500 hover:bg-emerald-600 px-5 py-2 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
                 >
                   <Repeat2 className="h-3.5 w-3.5" />
@@ -735,6 +786,7 @@ export function PostCard({
                 </button>
                 <button
                   onClick={handleConfirmUndoRepost}
+                  disabled={repostPending}
                   className="flex-1 rounded-full bg-rose-500 hover:bg-rose-600 py-2 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
                 >
                   بەڵێ، لای بدە

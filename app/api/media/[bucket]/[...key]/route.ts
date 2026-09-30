@@ -16,6 +16,11 @@ export async function GET(
       return new NextResponse("Not Found", { status: 404 });
     }
 
+    // Story objects must go through the expiry-aware endpoint.
+    if (bucket === "post" && fullKey.startsWith("stories/")) {
+      return new NextResponse("Not Found", { status: 404 });
+    }
+
     const response = await getObjectFromR2(bucket, fullKey);
     if (!response.Body) {
       return new NextResponse("Not Found", { status: 404 });

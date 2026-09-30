@@ -9,6 +9,9 @@ interface RouteParams {
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
+  const body = await request.json().catch(() => ({}));
+  const requestedState = typeof body.isLiked === "boolean" ? body.isLiked : null;
+  let authenticatedUserId: string | null = null;
 
   try {
     const supabase = await createClient();
@@ -17,60 +20,47 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     } = await supabase.auth.getUser();
 
     if (user) {
-      // Check if user already liked
-      const { data: existingLike } = await supabase
+      authenticatedUserId = user.id;
+      const { data: existingLike, error: lookupError } = await supabase
         .from("post_likes")
         .select("user_id")
         .eq("post_id", id)
         .eq("user_id", user.id)
         .maybeSingle();
 
-      let isLiked = false;
+      if (lookupError) throw lookupError;
 
-      if (existingLike) {
-        // Unlike
-        await supabase
+      const isLiked = requestedState ?? !existingLike;
+
+      if (isLiked && !existingLike) {
+        const { error } = await supabase.from("post_likes").upsert(
+          { post_id: id, user_id: user.id },
+          { onConflict: "user_id,post_id", ignoreDuplicates: true }
+        );
+        if (error) throw error;
+      } else if (!isLiked && existingLike) {
+        const { error } = await supabase
           .from("post_likes")
           .delete()
           .eq("post_id", id)
           .eq("user_id", user.id);
-        isLiked = false;
-      } else {
-        // Like
-        await supabase.from("post_likes").insert({
-          post_id: id,
-          user_id: user.id,
-        });
-        isLiked = true;
-
-        // Notify post author if different user
-        const { data: post } = await supabase
-          .from("posts")
-          .select("author_id")
-          .eq("id", id)
-          .maybeSingle();
-
-        if (post && post.author_id !== user.id) {
-          await supabase.from("notifications").insert({
-            recipient_id: post.author_id,
-            actor_id: user.id,
-            type: "flame",
-            entity_type: "post",
-            entity_id: id,
-            content: "دەنگدانەوەی بە پۆستەکەت بەخشی 🔥",
-          });
-        }
+        if (error) throw error;
       }
 
       // Fetch fresh likes count
       const { data: postData } = await supabase
         .from("posts")
-        .select("likes_count")
+        .select("likes_count, author_id, profiles:author_id(sequential_id)")
         .eq("id", id)
         .maybeSingle();
 
       try {
         revalidateCacheTag(CACHE_TAGS.feed);
+        if (postData?.author_id) {
+          revalidateCacheTag(CACHE_TAGS.profile(postData.author_id));
+          const profile = Array.isArray(postData.profiles) ? postData.profiles[0] : postData.profiles;
+          if (profile?.sequential_id) revalidateCacheTag(CACHE_TAGS.profile(String(profile.sequential_id)));
+        }
       } catch {}
 
       return NextResponse.json({
@@ -83,16 +73,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     console.error("POST /api/posts/[id]/like Supabase error:", err);
   }
 
-  // Fallback to mockDb
+  if (authenticatedUserId) {
+    return NextResponse.json({ error: "Like update failed. Please try again." }, { status: 500 });
+  }
+
+  // Fallback to mockDb for local/demo posts only.
   const post = mockDb.getPostById(id);
   if (!post) {
     return NextResponse.json({ error: "Post not found" }, { status: 404 });
   }
 
-  const nextIsLiked = !post.isLiked;
-  const nextLikesCount = nextIsLiked
-    ? (post.likesCount || 0) + 1
-    : Math.max(0, (post.likesCount || 1) - 1);
+  const wasLiked = Boolean(post.isLiked);
+  const nextIsLiked = requestedState ?? !wasLiked;
+  const nextLikesCount = Math.max(
+    0,
+    (post.likesCount || 0) + (nextIsLiked === wasLiked ? 0 : nextIsLiked ? 1 : -1)
+  );
 
   mockDb.updatePost(id, {
     isLiked: nextIsLiked,

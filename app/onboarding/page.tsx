@@ -28,7 +28,9 @@ import {
   sanitizeKurdishLocation,
   VALID_KURDISH_CITIES,
 } from "@/lib/kurdish-cities";
-import { compressAvatar, compressBanner } from "@/lib/image-compress";
+import { compressAvatar, compressBanner, cropImageToAspect } from "@/lib/image-compress";
+import { ImageCropDialog } from "@/components/profile/image-crop-dialog";
+import { invalidateCurrentUserCache } from "@/lib/hooks/use-current-user";
 
 // ─── Kurdish City Geolocation ──────────────────────────────────────────────────
 // Format MUST ALWAYS BE strictly: "شار، کوردستان"
@@ -134,8 +136,10 @@ export default function OnboardingPage() {
   const [handle, setHandle] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [coverUrl, setCoverUrl] = useState("https://images.unsplash.com/photo-1707343843437-caacff5cfa74?auto=format&fit=crop&w=1600&q=80");
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
   const [bio, setBio] = useState("");
   const [location, setLocation] = useState("هەولێر، کوردستان");
   const [locationLoading, setLocationLoading] = useState(true);
@@ -144,6 +148,7 @@ export default function OnboardingPage() {
   const [saving, setSaving] = useState(false);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -265,18 +270,24 @@ export default function OnboardingPage() {
   const [isUploadingCover, setIsUploadingCover] = useState(false);
 
   // ─── Upload Handlers via Cloudflare R2 ──────────────────────────────────────────
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file || !userId) return;
+    if (!file.type.startsWith("image/")) {
+      setError("تەنها فایلی وێنە قبوڵ دەکرێت");
+      return;
+    }
+    setError(null);
+    setAvatarFile(file);
+  };
 
-    // Instant local preview
-    const objectUrl = URL.createObjectURL(file);
-    setAvatarPreview(objectUrl);
-
+  const handleAvatarConfirm = async (positionX: number, positionY: number) => {
+    if (!avatarFile || !userId) return;
     try {
       setIsUploadingAvatar(true);
-      // 1. Client-side canvas compression to max 200KB @ 400x400
-      const compressed = await compressAvatar(file);
+      const cropped = await cropImageToAspect(avatarFile, 1, positionX, positionY);
+      const compressed = await compressAvatar(cropped);
 
       // 2. Upload to Cloudflare R2 'avatar' bucket via API
       const formData = new FormData();
@@ -296,26 +307,34 @@ export default function OnboardingPage() {
       if (data.url) {
         setAvatarUrl(data.url);
         setAvatarPreview(data.url);
+        setAvatarFile(null);
       }
     } catch (err) {
       console.warn("Avatar R2 upload error, keeping local preview:", err);
+      setError(err instanceof Error ? err.message : "هەڵە لە بارکردنی وێنە");
     } finally {
       setIsUploadingAvatar(false);
     }
   };
 
-  const handleCoverChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file || !userId) return;
+    if (!file.type.startsWith("image/")) {
+      setError("تەنها فایلی وێنە قبوڵ دەکرێت");
+      return;
+    }
+    setError(null);
+    setCoverFile(file);
+  };
 
-    // Instant local preview
-    const objectUrl = URL.createObjectURL(file);
-    setCoverPreview(objectUrl);
-
+  const handleCoverConfirm = async (positionX: number, positionY: number) => {
+    if (!coverFile || !userId) return;
     try {
       setIsUploadingCover(true);
-      // 1. Client-side canvas compression to max 500KB @ 1600x600
-      const compressed = await compressBanner(file);
+      const cropped = await cropImageToAspect(coverFile, 1600 / 600, positionX, positionY);
+      const compressed = await compressBanner(cropped);
 
       // 2. Upload to Cloudflare R2 'banner' bucket via API
       const formData = new FormData();
@@ -335,9 +354,11 @@ export default function OnboardingPage() {
       if (data.url) {
         setCoverUrl(data.url);
         setCoverPreview(data.url);
+        setCoverFile(null);
       }
     } catch (err) {
       console.warn("Cover R2 upload error, keeping local preview:", err);
+      setError(err instanceof Error ? err.message : "هەڵە لە بارکردنی وێنەی بەرگ");
     } finally {
       setIsUploadingCover(false);
     }
@@ -372,11 +393,19 @@ export default function OnboardingPage() {
       });
 
       const data = await res.json();
+      if (res.status === 409 && data.code === "username_taken") {
+        setUsernameError(data.error || "ئەم ناوی بەکارهێنەرە پێشتر وەرگیراوە. تکایە ناوێکی تر هەڵبژێرە.");
+        setError(null);
+        setActiveStep(2);
+        setSaving(false);
+        return;
+      }
       if (!res.ok || data.error) {
         throw new Error(data.error || "هەڵەیەک لە پاشەکەوتکردندا ڕوویدا");
       }
 
       // Success -> redirect to homepage
+      invalidateCurrentUserCache();
       router.replace("/");
     } catch (err: any) {
       setError(err.message || "هەڵەیەک لە سێرڤەردا ڕوویدا");
@@ -515,6 +544,20 @@ export default function OnboardingPage() {
 
       {/* Main Container */}
       <main className="relative z-10 mx-auto max-w-xl px-4 sm:px-6 pt-8 space-y-6">
+        <ImageCropDialog
+          file={avatarFile}
+          kind="avatar"
+          isSaving={isUploadingAvatar}
+          onCancel={() => { if (!isUploadingAvatar) setAvatarFile(null); }}
+          onConfirm={handleAvatarConfirm}
+        />
+        <ImageCropDialog
+          file={coverFile}
+          kind="cover"
+          isSaving={isUploadingCover}
+          onCancel={() => { if (!isUploadingCover) setCoverFile(null); }}
+          onConfirm={handleCoverConfirm}
+        />
         {/* Title and Intro */}
         <div className="text-center space-y-2">
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
@@ -713,13 +756,16 @@ export default function OnboardingPage() {
                     <input
                       type="text"
                       value={handle}
-                      onChange={(e) =>
-                        setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))
-                      }
+                      onChange={(e) => {
+                        setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""));
+                        setUsernameError(null);
+                      }}
                       placeholder="username"
-                      className="w-full rounded-xl border border-border bg-background py-2.5 pl-8 pr-3 text-xs sm:text-sm text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                      aria-invalid={Boolean(usernameError)}
+                      className={`w-full rounded-xl border bg-background py-2.5 pl-8 pr-3 text-xs sm:text-sm text-foreground font-mono focus:outline-none focus:ring-2 transition-all ${usernameError ? "border-destructive focus:ring-destructive/20" : "border-border focus:ring-primary/30"}`}
                     />
                   </div>
+                  {usernameError && <p role="alert" className="text-[11px] font-medium text-destructive">{usernameError}</p>}
                 </div>
 
                 {/* Bio */}

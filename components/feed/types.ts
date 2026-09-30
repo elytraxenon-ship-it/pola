@@ -14,6 +14,7 @@ export interface Comment {
   contentEn?: string;
   timestamp: string;
   timestampEn?: string;
+  createdAt?: string;
   likes: number;
   isLiked?: boolean;
 }
@@ -33,6 +34,7 @@ export interface Post {
   commentsCount: number;
   sharesCount: number;
   isLiked?: boolean;
+  isReposted?: boolean;
   isSaved?: boolean;
   comments: Comment[];
   commentsEn?: Comment[];
@@ -40,10 +42,12 @@ export interface Post {
 
 export interface Story {
   id: string;
-  authorName: string;
-  authorAvatar: string;
+  author: User;
   mediaUrl: string;
+  caption: string;
   hasUnseen?: boolean;
+  createdAt: string;
+  expiresAt: string;
 }
 
 export interface FriendRequest {

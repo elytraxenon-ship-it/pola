@@ -17,6 +17,15 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { full_name, username, avatar_url, cover_url, bio, location } = body;
+    const requestedUsername = typeof username === "string" ? username.trim().toLowerCase() : "";
+    const normalizedUsername = requestedUsername || `user_${user.id.replace(/-/g, "").slice(-16)}`;
+
+    if (!/^[a-z0-9_]+$/.test(normalizedUsername)) {
+      return NextResponse.json(
+        { code: "invalid_username", error: "ناوی بەکارهێنەر تەنها دەتوانێت پیتی ئینگلیزی، ژمارە و _ لەخۆبگرێت." },
+        { status: 400 }
+      );
+    }
 
     // Strict Server-Side Location Validation
     if (!location || !isValidKurdishLocation(location)) {
@@ -38,12 +47,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Give the user an actionable response before the unique index rejects the update.
+    const { data: conflictingProfile, error: usernameLookupError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("username", normalizedUsername)
+      .neq("id", user.id)
+      .maybeSingle();
+
+    if (usernameLookupError) {
+      console.error("Onboarding username lookup error:", usernameLookupError);
+      return NextResponse.json({ error: "نەتوانرا ناوی بەکارهێنەر پشتڕاست بکرێتەوە. تکایە دووبارە هەوڵ بدەرەوە." }, { status: 500 });
+    }
+
+    if (conflictingProfile) {
+      return NextResponse.json(
+        { code: "username_taken", error: "ئەم ناوی بەکارهێنەرە پێشتر وەرگیراوە. تکایە ناوێکی تر هەڵبژێرە." },
+        { status: 409 }
+      );
+    }
+
     // Update profile in Supabase
     const { error: updateError } = await supabase
       .from("profiles")
       .update({
         full_name: full_name?.trim() || user.user_metadata?.full_name || "بەکارهێنەری پۆلا",
-        username: username?.trim() || `user_${user.id.slice(0, 6)}`,
+        username: normalizedUsername,
         avatar_url: avatar_url || undefined,
         cover_url: cover_url || undefined,
         bio: bio?.trim() || "ئەندامی نوێی کۆمەڵگەی پۆلا ✨",
@@ -54,6 +83,13 @@ export async function POST(request: NextRequest) {
       .eq("id", user.id);
 
     if (updateError) {
+      // The unique-index check above is helpful UX; this also handles simultaneous signups safely.
+      if (updateError.code === "23505" && updateError.message.includes("profiles_username_key")) {
+        return NextResponse.json(
+          { code: "username_taken", error: "ئەم ناوی بەکارهێنەرە پێشتر وەرگیراوە. تکایە ناوێکی تر هەڵبژێرە." },
+          { status: 409 }
+        );
+      }
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
 
