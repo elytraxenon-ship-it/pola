@@ -14,7 +14,7 @@ CREATE POLICY "Followers can view active stories"
       OR EXISTS (
         SELECT 1
         FROM public.profile_follows AS follows
-        WHERE follows.follower_id = auth.uid()
+        WHERE follows.follower_id = auth.uid()sss
           AND follows.following_id = stories.user_id
       )
     )
