@@ -4,6 +4,7 @@ import {
   Flame,
   Globe2,
   MessageSquare,
+  Reply,
   Send,
   Share2,
   Sparkles,
@@ -27,7 +28,7 @@ interface PostDialogProps {
   post: Post | null;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onAddComment?: (postId: string, commentText: string) => void;
+  onAddComment?: (postId: string, commentText: string, parentId?: string) => Promise<Comment | void> | Comment | void;
   onLikeToggle?: (postId: string, isLiked: boolean) => void;
   currentUser?: User;
   onViewProfile?: (userId: string) => void;
@@ -49,6 +50,8 @@ export function PostDialog({
   const [commentsPostId, setCommentsPostId] = useState("");
   const [isLoadingOlderComments, setIsLoadingOlderComments] = useState(false);
   const [hasMoreComments, setHasMoreComments] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
+  const [isPostingComment, setIsPostingComment] = useState(false);
   const postId = post?.id;
   const visibleComments = commentsPostId === postId ? comments : [];
   const isLoadingComments = isOpen && Boolean(postId) && commentsPostId !== postId;
@@ -113,20 +116,56 @@ export function PostDialog({
   const displayTags = language === "en" && post.tagsEn ? post.tagsEn : post.tags;
   const displayTimestamp = language === "en" && post.timestampEn ? post.timestampEn : post.timestamp;
 
-  const handleCommentSubmit = (e: React.FormEvent) => {
+  const topLevelComments = visibleComments.filter((comment) =>
+    !comment.parentId || !visibleComments.some((parent) => parent.id === comment.parentId)
+  );
+
+  const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!commentText.trim()) return;
+    if (!commentText.trim() || isPostingComment) return;
 
     const content = commentText.trim();
-    setComments((prev) => [...prev, {
-      id: `pending-${Date.now()}`,
-      author: currentUser || CURRENT_USER,
+    const pendingId = `pending-${Date.now()}`;
+    const pendingComment: Comment = {
+      id: pendingId,
+      author: commenter,
       content,
+      parentId: replyingTo?.id,
       timestamp: language === "en" ? "Just now" : "ئێستا",
       likes: 0,
-    }]);
-    onAddComment?.(post.id, content);
+    };
+    setComments((previous) => [...previous, pendingComment]);
     setCommentText("");
+    setIsPostingComment(true);
+    try {
+      let savedComment: Comment | void;
+      if (onAddComment) {
+        savedComment = await onAddComment(post.id, content, replyingTo?.id);
+      } else {
+        const response = await fetch(`/api/posts/${encodeURIComponent(post.id)}/comments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content, parentId: replyingTo?.id }),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.comment) throw new Error(data.error || "Could not post comment");
+        savedComment = data.comment as Comment;
+      }
+      if (savedComment) {
+        setComments((previous) => previous.map((comment) => comment.id === pendingId ? savedComment! : comment));
+      }
+      setReplyingTo(null);
+    } catch (error) {
+      setComments((previous) => previous.filter((comment) => comment.id !== pendingId));
+      setCommentText(content);
+      toast.add({
+        title: language === "en" ? "Could not post comment" : "نەتوانرا لێدوانەکە بنێردرێت",
+        description: error instanceof Error ? error.message : undefined,
+        type: "error",
+      });
+    } finally {
+      setIsPostingComment(false);
+    }
   };
 
   const insertEmoji = (emoji: string) => {
@@ -264,30 +303,34 @@ export function PostDialog({
               <p className="py-5 text-center text-xs text-muted-foreground">{language === "en" ? "Loading comments…" : "لێدوانەکان باردەکرێن..."}</p>
             ) : visibleComments.length > 0 ? (
               <div className="space-y-3">
-                {visibleComments.map((comment: Comment) => (
-                  <div key={comment.id} className="flex gap-2.5 text-xs">
-                    <Avatar10
-                      name={comment.author.name}
-                      avatar={comment.author.avatar}
-                      size="size-8"
-                    />
-                    <div className="flex-1 rounded-xl bg-muted/30 border border-border/60 p-3">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-foreground">
-                          {comment.author.name}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {language === "en" && comment.timestampEn ? comment.timestampEn : comment.timestamp}
-                        </span>
+                {topLevelComments.map((comment) => {
+                  const replies = visibleComments.filter((reply) => reply.parentId === comment.id);
+                  const renderComment = (item: Comment, isReply = false) => (
+                    <div key={item.id} className={`flex gap-2.5 text-xs ${isReply ? "ms-7 sm:ms-10" : ""}`}>
+                      <Avatar10 name={item.author.name} avatar={item.author.avatar} size="size-8" />
+                      <div className="min-w-0 flex-1 rounded-xl border border-border/60 bg-muted/30 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate font-bold text-foreground">{item.author.name}</span>
+                          <span className="shrink-0 text-[10px] text-muted-foreground">
+                            {language === "en" && item.timestampEn ? item.timestampEn : item.timestamp}
+                          </span>
+                        </div>
+                        <p className={`mt-1 whitespace-pre-wrap break-words leading-relaxed text-foreground/90 ${dir === "rtl" ? "text-right" : "text-left"}`}>
+                          {language === "en" && item.contentEn ? item.contentEn : item.content}
+                        </p>
+                        <button type="button" onClick={() => { setReplyingTo(item); commentInputRef.current?.focus(); }} className="mt-2 inline-flex min-h-7 items-center gap-1 rounded-full px-2 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-primary">
+                          <Reply className="size-3.5" />{language === "en" ? "Reply" : "وەڵامدانەوە"}
+                        </button>
                       </div>
-                      <p className={`mt-1 text-foreground/90 leading-relaxed ${
-                        dir === "rtl" ? "text-right" : "text-left"
-                      }`}>
-                        {language === "en" && comment.contentEn ? comment.contentEn : comment.content}
-                      </p>
                     </div>
-                  </div>
-                ))}
+                  );
+                  return (
+                    <div key={comment.id} className="space-y-2">
+                      {renderComment(comment)}
+                      {replies.length > 0 && <div className="space-y-2 border-s-2 border-border/70">{replies.map((reply) => renderComment(reply, true))}</div>}
+                    </div>
+                  );
+                })}
                 {hasMoreComments && <button type="button" disabled={isLoadingOlderComments} onClick={loadOlderComments} className="w-full py-2 text-xs font-semibold text-primary hover:underline disabled:opacity-50">
                   {isLoadingOlderComments ? (language === "en" ? "Loading…" : "باردەکرێت...") : (language === "en" ? "Load older comments" : "لێدوانە کۆنترەکان ببینە")}
                 </button>}
@@ -304,6 +347,12 @@ export function PostDialog({
 
         {/* Bottom Comment Input */}
         <div className="p-3 border-t border-border/60 bg-muted/20 shrink-0">
+          {replyingTo && (
+            <div className="mb-2 flex items-center justify-between gap-2 rounded-lg bg-primary/5 px-3 py-2 text-xs">
+              <span className="truncate text-muted-foreground">{language === "en" ? `Replying to ${replyingTo.author.name}` : `وەڵام بۆ ${replyingTo.author.name}`}</span>
+              <button type="button" onClick={() => setReplyingTo(null)} className="shrink-0 font-semibold text-primary hover:underline">{language === "en" ? "Cancel" : "پاشگەزبوونەوە"}</button>
+            </div>
+          )}
           <form onSubmit={handleCommentSubmit} className="flex items-center gap-2">
             <Avatar10
               name={commenter.name}
@@ -317,10 +366,13 @@ export function PostDialog({
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
                 placeholder={
-                  language === "en"
+                  replyingTo
+                    ? (language === "en" ? `Reply to ${replyingTo.author.name}...` : `وەڵامێک بۆ ${replyingTo.author.name} بنووسە...`)
+                    : language === "en"
                     ? "Reply to this moment..."
                     : "وەڵامی ئەم ساتە بدەرەوە..."
                 }
+                disabled={isPostingComment}
                 className={`w-full rounded-full border border-border/80 bg-background px-4 py-2 ${
                   dir === "rtl" ? "pl-9 text-right" : "pr-9 text-left"
                 } text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-primary/40`}
@@ -330,7 +382,7 @@ export function PostDialog({
             <Button
               type="submit"
               size="sm"
-                disabled={!commentText.trim() || isLoadingComments}
+                disabled={!commentText.trim() || isLoadingComments || isPostingComment}
               className="rounded-full px-3.5 h-8.5 text-xs font-semibold"
             >
               <Send className={`h-3.5 w-3.5 ${dir === "rtl" ? "rotate-180" : ""}`} />

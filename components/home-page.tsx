@@ -15,7 +15,7 @@ import { PostDialog } from "./feed/post-dialog";
 import { SkeletonPost } from "./feed/skeleton-post";
 import { SpacesPage } from "./feed/spaces-page";
 import { StoriesReel } from "./feed/stories-reel";
-import { Post } from "./feed/types";
+import { Comment, Post } from "./feed/types";
 import { ProfilePage } from "./profile/profile-page";
 import { SettingsPage } from "./settings/settings-page";
 import { useLanguage } from "@/lib/language-context";
@@ -162,31 +162,32 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
   };
 
   // Handler for editing an existing post
-  const handleEditPost = (postId: string, newContent: string) => {
-    setPosts((prev) =>
-      prev.map((post) =>
-        post.id === postId ? { ...post, content: newContent } : post
-      )
-    );
-    fetch(`/api/posts/${postId}`, {
+  const handleEditPost = async (postId: string, newContent: string) => {
+    const response = await fetch(`/api/posts/${encodeURIComponent(postId)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content: newContent }),
-    }).catch((err) => console.error("Error editing post:", err));
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "نەتوانرا پۆستەکە نوێ بکرێتەوە");
+    setPosts((prev) => prev.map((post) => post.id === postId ? { ...post, content: newContent } : post));
+    setSelectedPostForDialog((post) => post?.id === postId ? { ...post, content: newContent } : post);
   };
 
   // Handler for deleting a post
-  const handleDeletePost = (postId: string) => {
+  const handleDeletePost = async (postId: string) => {
+    const response = await fetch(`/api/posts/${encodeURIComponent(postId)}`, { method: "DELETE" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "نەتوانرا پۆستەکە بسڕدرێتەوە");
     setPosts((prev) => prev.filter((post) => post.id !== postId));
-    fetch(`/api/posts/${postId}`, {
-      method: "DELETE",
-    }).catch((err) => console.error("Error deleting post:", err));
+    setSelectedPostForDialog((post) => post?.id === postId ? null : post);
+    if (selectedPostForDialog?.id === postId) setIsPostDialogOpen(false);
   };
 
   // Handler for adding a comment to a specific post
-  const handleAddComment = (postId: string, commentText: string) => {
+  const handleAddComment = async (postId: string, commentText: string, parentId?: string): Promise<Comment> => {
     const tempCommentId = `c-${Date.now()}`;
-    const newComment = {
+    const newComment: Comment = {
       id: tempCommentId,
       author: {
         id: currentUser.id,
@@ -196,6 +197,7 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
       },
       content: commentText,
       timestamp: "کەمێک لەمەوبەر",
+      parentId,
       likes: 0,
     };
 
@@ -218,33 +220,38 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
       })
     );
 
-    // Call API to persist comment
-    fetch(`/api/posts/${postId}/comments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: commentText }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.comment) {
-          setPosts((prev) =>
-            prev.map((post) => {
-              if (post.id === postId) {
-                const updatedComments = (post.comments || []).map((c) =>
-                  c.id === tempCommentId ? data.comment : c
-                );
-                return {
-                  ...post,
-                  comments: updatedComments,
-                  commentsCount: data.commentsCount ?? post.commentsCount,
-                };
-              }
-              return post;
-            })
-          );
-        }
-      })
-      .catch((err) => console.error("Error posting comment:", err));
+    try {
+      const response = await fetch(`/api/posts/${encodeURIComponent(postId)}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: commentText, parentId }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.comment) throw new Error(data.error || "نەتوانرا لێدوانەکە پاشەکەوت بکرێت");
+      setPosts((prev) => prev.map((post) => post.id === postId ? {
+        ...post,
+        comments: (post.comments || []).map((comment) => comment.id === tempCommentId ? data.comment : comment),
+        commentsCount: data.commentsCount ?? post.commentsCount,
+      } : post));
+      setSelectedPostForDialog((post) => post?.id === postId ? {
+        ...post,
+        comments: (post.comments || []).map((comment) => comment.id === tempCommentId ? data.comment : comment),
+        commentsCount: data.commentsCount ?? post.commentsCount,
+      } : post);
+      return data.comment as Comment;
+    } catch (error) {
+      setPosts((prev) => prev.map((post) => post.id === postId ? {
+        ...post,
+        comments: (post.comments || []).filter((comment) => comment.id !== tempCommentId),
+        commentsCount: Math.max(0, (post.commentsCount || 0) - 1),
+      } : post));
+      setSelectedPostForDialog((post) => post?.id === postId ? {
+        ...post,
+        comments: (post.comments || []).filter((comment) => comment.id !== tempCommentId),
+        commentsCount: Math.max(0, (post.commentsCount || 0) - 1),
+      } : post);
+      throw error;
+    }
   };
 
   // Handler for like toggle
@@ -409,6 +416,8 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
             onAddPost={handleAddPost}
             onLikeToggle={handleLikeToggle}
             onAddComment={handleAddComment}
+            onEditPost={handleEditPost}
+            onDeletePost={handleDeletePost}
             onOpenDialog={openPost}
             onViewProfile={viewProfile}
             onBackToFeed={() => navigateTo("feed")}

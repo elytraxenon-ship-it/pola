@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, LoaderCircle, Plus, Sparkles, X } from "lucide-react";
+import { ChevronLeft, LoaderCircle, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast";
@@ -37,6 +37,8 @@ export function StoriesReel({ currentUser }: StoriesReelProps) {
   const [isPublishing, setIsPublishing] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [caption, setCaption] = useState("");
+  const [showStoryDeleteConfirm, setShowStoryDeleteConfirm] = useState(false);
+  const [isDeletingStory, setIsDeletingStory] = useState(false);
   const [viewer, setViewer] = useState<{ groupIndex: number; storyIndex: number } | null>(null);
 
   const groups = useMemo<StoryGroup[]>(() => {
@@ -175,7 +177,7 @@ export function StoriesReel({ currentUser }: StoriesReelProps) {
   }, [groups]);
 
   useEffect(() => {
-    if (!activeStory) return;
+    if (!activeStory || showStoryDeleteConfirm) return;
     const remainingLifetime = Date.parse(activeStory.expiresAt) - Date.now();
     if (!Number.isFinite(remainingLifetime) || remainingLifetime <= 0) {
       setStories((previous) => previous.filter((story) => story.id !== activeStory.id));
@@ -192,7 +194,7 @@ export function StoriesReel({ currentUser }: StoriesReelProps) {
     };
     const timer = window.setTimeout(advance, Math.min(STORY_FRAME_MS, remainingLifetime));
     return () => window.clearTimeout(timer);
-  }, [activeStory?.id, activeStory?.expiresAt, advanceViewer]);
+  }, [activeStory?.id, activeStory?.expiresAt, advanceViewer, showStoryDeleteConfirm]);
 
   useEffect(() => {
     if (!viewer) return;
@@ -215,6 +217,31 @@ export function StoriesReel({ currentUser }: StoriesReelProps) {
   };
 
   const myGroup = groups.findIndex((group) => group.author.id === currentUser.id);
+  const canDeleteActiveStory = Boolean(activeStory && (
+    activeStory.author.id === currentUser.id || activeStory.author.handle === currentUser.handle
+  ));
+
+  const deleteActiveStory = async () => {
+    if (!activeStory || isDeletingStory) return;
+    setIsDeletingStory(true);
+    try {
+      const response = await fetch(`/api/stories/${encodeURIComponent(activeStory.id)}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "نەتوانرا ساتەکە بسڕدرێتەوە");
+      setStories((previous) => previous.filter((story) => story.id !== activeStory.id));
+      setViewer(null);
+      setShowStoryDeleteConfirm(false);
+      toast.add({ title: language === "en" ? "Story deleted" : "ساتەکە سڕایەوە", type: "success" });
+    } catch (error) {
+      toast.add({
+        title: language === "en" ? "Could not delete story" : "نەتوانرا ساتەکە بسڕدرێتەوە",
+        description: error instanceof Error ? error.message : undefined,
+        type: "error",
+      });
+    } finally {
+      setIsDeletingStory(false);
+    }
+  };
 
   return (
     <section className="relative w-full min-w-0 overflow-hidden rounded-2xl border border-border/70 bg-card/70 p-3 shadow-xs backdrop-blur-sm sm:p-4" aria-label="ساتەکانی ٢٤ کاتژمێر">
@@ -377,7 +404,10 @@ export function StoriesReel({ currentUser }: StoriesReelProps) {
                     <p className="text-[10px] text-white/75">{new Date(activeStory.createdAt).toLocaleTimeString(language === "en" ? "en" : "ckb", { hour: "numeric", minute: "2-digit" })}</p>
                   </div>
                 </div>
-                <button type="button" onClick={() => setViewer(null)} className="grid size-10 shrink-0 place-items-center rounded-full bg-black/40 text-white" aria-label="داخستن"><X className="size-5" /></button>
+                <div className="flex shrink-0 items-center gap-1">
+                  {canDeleteActiveStory && <button type="button" onClick={() => setShowStoryDeleteConfirm(true)} className="grid size-10 place-items-center rounded-full bg-black/40 text-white transition-colors hover:bg-rose-600/80" aria-label={language === "en" ? "Delete story" : "سڕینەوەی سات"}><Trash2 className="size-4" /></button>}
+                  <button type="button" onClick={() => setViewer(null)} className="grid size-10 place-items-center rounded-full bg-black/40 text-white" aria-label={language === "en" ? "Close story" : "داخستن"}><X className="size-5" /></button>
+                </div>
               </div>
 
               <button type="button" onClick={() => advanceViewer(dir === "rtl" ? 1 : -1)} className="absolute inset-y-20 left-0 z-[5] w-1/3" aria-label="ساتێکی پێشوو" />
@@ -387,6 +417,21 @@ export function StoriesReel({ currentUser }: StoriesReelProps) {
                   <p className="whitespace-pre-wrap break-words text-center text-sm font-semibold leading-relaxed text-white drop-shadow sm:text-base">{activeStory.caption}</p>
                 </div>
               )}
+              <AnimatePresence>
+                {showStoryDeleteConfirm && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} role="alertdialog" aria-modal="true" className="absolute inset-0 z-20 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+                    <div dir={dir} className="w-full max-w-xs rounded-2xl border border-white/15 bg-neutral-950/95 p-4 text-center shadow-2xl">
+                      <span className="mx-auto mb-3 grid size-11 place-items-center rounded-full bg-rose-500/15 text-rose-400"><Trash2 className="size-5" /></span>
+                      <p className="text-sm font-bold">{language === "en" ? "Delete this story?" : "ئەم ساتە بسڕدرێتەوە؟"}</p>
+                      <p className="mt-1 text-xs leading-relaxed text-white/65">{language === "en" ? "It will no longer be visible to your followers." : "ئیتر فۆڵۆەرەکانت ناتوانن ئەم ساتە ببینن."}</p>
+                      <div className="mt-4 flex gap-2">
+                        <button type="button" disabled={isDeletingStory} onClick={() => setShowStoryDeleteConfirm(false)} className="min-h-10 flex-1 rounded-full border border-white/20 text-xs font-semibold text-white hover:bg-white/10 disabled:opacity-50">{language === "en" ? "Keep story" : "ساتەکە بهێڵەوە"}</button>
+                        <button type="button" disabled={isDeletingStory} onClick={deleteActiveStory} className="min-h-10 flex-1 rounded-full bg-rose-600 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50">{isDeletingStory ? (language === "en" ? "Deleting…" : "دەسڕێتەوە...") : (language === "en" ? "Delete" : "بسڕەوە")}</button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
         </DialogContent>

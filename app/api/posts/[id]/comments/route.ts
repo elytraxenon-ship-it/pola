@@ -23,6 +23,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       .select(`
         id,
         content,
+        parent_comment_id,
         created_at,
         profiles:author_id (
           id,
@@ -54,6 +55,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             verified: true,
           },
           content: c.content,
+          parentId: c.parent_comment_id || undefined,
           timestamp: createdAt.toLocaleString("ckb", { dateStyle: "medium", timeStyle: "short" }),
           timestampEn: createdAt.toLocaleString("en", { dateStyle: "medium", timeStyle: "short" }),
           createdAt: c.created_at,
@@ -79,15 +81,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const body = await request.json();
     const { content } = body;
+    const requestedParentId = body.parentId;
 
-    if (!content || typeof content !== "string" || !content.trim()) {
+    if (!content || typeof content !== "string" || !content.trim() || content.trim().length > 2000) {
       return NextResponse.json(
-        { error: "لێدوان ناتوانرێت بەتاڵ بێت" },
+        { error: "لێدوان پێویستە و نابێت لە ٢٠٠٠ پیت زیاتر بێت" },
         { status: 400 }
       );
     }
+    if (requestedParentId !== undefined && (typeof requestedParentId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestedParentId))) {
+      return NextResponse.json({ error: "لێدوانی وەڵام نادروستە" }, { status: 400 });
+    }
 
     const trimmed = content.trim();
+    let parentCommentId: string | null = requestedParentId || null;
     const supabase = await createClient();
     const {
       data: { user },
@@ -95,16 +102,32 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     if (user) {
       authenticatedUserId = user.id;
+      if (parentCommentId) {
+        const { data: parent, error: parentError } = await supabase
+          .from("post_comments")
+          .select("id,post_id,parent_comment_id")
+          .eq("id", parentCommentId)
+          .maybeSingle();
+        if (parentError) throw parentError;
+        if (!parent || parent.post_id !== id) {
+          return NextResponse.json({ error: "لێدوانی وەڵام نادۆزرێتەوە" }, { status: 404 });
+        }
+        // Keep a single, readable thread level. Replies to replies stay in the
+        // original comment thread rather than nesting indefinitely.
+        parentCommentId = parent.parent_comment_id || parent.id;
+      }
       const { data: comment, error } = await supabase
         .from("post_comments")
         .insert({
           post_id: id,
           author_id: user.id,
           content: trimmed,
+          parent_comment_id: parentCommentId,
         })
         .select(`
           id,
           content,
+          parent_comment_id,
           created_at,
           profiles:author_id (
             id,
@@ -131,6 +154,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             verified: true,
           },
           content: comment.content,
+          parentId: comment.parent_comment_id || undefined,
           timestamp: createdAt.toLocaleString("ckb", { dateStyle: "medium", timeStyle: "short" }),
           timestampEn: createdAt.toLocaleString("en", { dateStyle: "medium", timeStyle: "short" }),
           createdAt: comment.created_at,
@@ -174,6 +198,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80",
     },
     content: trimmed,
+    parentId: typeof body.parentId === "string" ? body.parentId : undefined,
     timestamp: "کەمێک لەمەوبەر",
     likes: 0,
   };

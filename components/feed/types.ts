@@ -12,6 +12,7 @@ export interface Comment {
   author: User;
   content: string;
   contentEn?: string;
+  parentId?: string;
   timestamp: string;
   timestampEn?: string;
   createdAt?: string;

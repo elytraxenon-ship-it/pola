@@ -28,11 +28,11 @@ import { EmojiPicker } from "./emoji-picker";
 interface PostCardProps {
   post: Post;
   onLikeToggle?: (postId: string, isLiked: boolean) => void;
-  onAddComment?: (postId: string, commentText: string) => void;
+  onAddComment?: (postId: string, commentText: string) => void | Promise<unknown>;
   onSaveToggle?: (postId: string) => void;
   onOpenDialog?: (post: Post) => void;
-  onEditPost?: (postId: string, newContent: string) => void;
-  onDeletePost?: (postId: string) => void;
+  onEditPost?: (postId: string, newContent: string) => void | Promise<void>;
+  onDeletePost?: (postId: string) => void | Promise<void>;
   onRepost?: (postId: string, delta: 1 | -1 | 0, sharesCount?: number) => void;
   currentUser?: User;
   onViewProfile?: (userId: string) => void;
@@ -64,6 +64,10 @@ export function PostCard({
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(post.content);
   const [localContent, setLocalContent] = useState(post.content);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isPostingComment, setIsPostingComment] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeletingPost, setIsDeletingPost] = useState(false);
 
   // Repost State
   const [localIsReposted, setLocalIsReposted] = useState(post.isReposted ?? false);
@@ -89,9 +93,7 @@ export function PostCard({
   const [isCopiedInMenu, setIsCopiedInMenu] = useState(false);
   const [isCopiedId, setIsCopiedId] = useState(false);
 
-  const isOwner =
-    post.author.id === CURRENT_USER.id ||
-    post.author.handle === CURRENT_USER.handle;
+  const isOwner = post.author.id === commenter.id || post.author.handle === commenter.handle;
 
   const displayContent = localContent;
   const displayTags = post.tags;
@@ -242,41 +244,68 @@ export function PostCard({
     }
   };
 
-  const handleSaveEdit = () => {
-    if (!editedContent.trim()) return;
+  const handleSaveEdit = async () => {
+    if (!editedContent.trim() || isSavingEdit) return;
     const trimmed = editedContent.trim();
+    const previousContent = localContent;
+    setIsSavingEdit(true);
     setLocalContent(trimmed);
-    setIsEditing(false);
-    setShowMenu(false);
-    onEditPost?.(post.id, trimmed);
-    fetch(`/api/posts/${post.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: trimmed }),
-    }).catch(() => {});
-    toast.add({
-      title: "پۆست نوێکرایەوە! ✏️",
-      description: "دەستکارییەکانی پۆستەکەت بە سەرکەوتوویی پاشەکەوت کران.",
-      type: "success",
-    });
+    try {
+      if (onEditPost) await onEditPost(post.id, trimmed);
+      else {
+        const response = await fetch(`/api/posts/${encodeURIComponent(post.id)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: trimmed }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "نەتوانرا پۆستەکە نوێ بکرێتەوە");
+      }
+      setIsEditing(false);
+      setShowMenu(false);
+      toast.add({ title: "پۆست نوێکرایەوە! ✏️", description: "دەستکارییەکانی پۆستەکەت پاشەکەوت کران.", type: "success" });
+    } catch (error) {
+      setLocalContent(previousContent);
+      setEditedContent(previousContent);
+      toast.add({ title: "نەتوانرا پۆستەکە نوێ بکرێتەوە", description: error instanceof Error ? error.message : "دووبارە هەوڵ بدەرەوە.", type: "error" });
+    } finally {
+      setIsSavingEdit(false);
+    }
   };
 
-  const handleDelete = () => {
-    setShowMenu(false);
-    onDeletePost?.(post.id);
-    fetch(`/api/posts/${post.id}`, { method: "DELETE" }).catch(() => {});
-    toast.add({
-      title: "پۆستەکە سڕایەوە! 🗑️",
-      description: "پۆستەکەت لە تۆڕی پۆلا سڕایەوە.",
-      type: "success",
-    });
+  const handleDelete = async () => {
+    if (isDeletingPost) return;
+    setIsDeletingPost(true);
+    try {
+      if (onDeletePost) await onDeletePost(post.id);
+      else {
+        const response = await fetch(`/api/posts/${encodeURIComponent(post.id)}`, { method: "DELETE" });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "نەتوانرا پۆستەکە بسڕدرێتەوە");
+      }
+      setShowDeleteConfirm(false);
+      setShowMenu(false);
+      toast.add({ title: "پۆستەکە سڕایەوە", description: "پۆستەکەت بە سەرکەوتوویی سڕایەوە.", type: "success" });
+    } catch (error) {
+      toast.add({ title: "نەتوانرا پۆستەکە بسڕدرێتەوە", description: error instanceof Error ? error.message : "دووبارە هەوڵ بدەرەوە.", type: "error" });
+    } finally {
+      setIsDeletingPost(false);
+    }
   };
 
-  const handleCommentSubmit = (e: React.FormEvent) => {
+  const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!commentText.trim()) return;
+    if (!commentText.trim() || isPostingComment) return;
 
-    onAddComment?.(post.id, commentText.trim());
+    setIsPostingComment(true);
+    try {
+      await onAddComment?.(post.id, commentText.trim());
+    } catch (error) {
+      toast.add({ title: language === "en" ? "Could not post comment" : "نەتوانرا لێدوانەکە بنێردرێت", description: error instanceof Error ? error.message : undefined, type: "error" });
+      return;
+    } finally {
+      setIsPostingComment(false);
+    }
     setCommentText("");
   };
 
@@ -371,7 +400,7 @@ export function PostCard({
                     <span>دەستکاریکردنی پۆست</span>
                   </button>
                   <button
-                    onClick={handleDelete}
+                    onClick={() => { setShowMenu(false); setShowDeleteConfirm(true); }}
                     className="w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -441,10 +470,11 @@ export function PostCard({
               </button>
               <button
                 onClick={handleSaveEdit}
+                disabled={isSavingEdit}
                 className="flex items-center gap-1 rounded-lg bg-foreground px-3 py-1 text-xs font-bold text-background hover:opacity-90 cursor-pointer"
               >
-                <Check className="h-3.5 w-3.5" />
-                <span>پاشەکەوتکردن</span>
+                {isSavingEdit ? <span className="size-3.5 animate-spin rounded-full border-2 border-background/40 border-t-background" /> : <Check className="h-3.5 w-3.5" />}
+                <span>{isSavingEdit ? "پاشەکەوت دەکرێت..." : "پاشەکەوتکردن"}</span>
               </button>
             </div>
           </div>
@@ -640,7 +670,7 @@ export function PostCard({
               <Button
                 type="submit"
                 size="sm"
-                disabled={!commentText.trim()}
+                disabled={!commentText.trim() || isPostingComment}
                 className="rounded-full shrink-0 h-8 px-3"
               >
                 <Send className={`h-3.5 w-3.5 ${dir === "rtl" ? "rotate-180" : ""}`} />
@@ -791,6 +821,39 @@ export function PostCard({
                 >
                   بەڵێ، لای بدە
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            onClick={(event) => { if (event.target === event.currentTarget && !isDeletingPost) setShowDeleteConfirm(false); }}
+          >
+            <motion.div
+              dir={dir}
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby={`delete-post-title-${post.id}`}
+              initial={{ opacity: 0, scale: 0.94, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 12 }}
+              className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 text-right shadow-2xl"
+            >
+              <div className="mb-4 flex flex-col items-center gap-2 text-center">
+                <span className="grid size-12 place-items-center rounded-full bg-rose-500/10 text-rose-500"><Trash2 className="size-5" /></span>
+                <h3 id={`delete-post-title-${post.id}`} className="text-sm font-bold">{language === "en" ? "Delete this post?" : "پۆستەکە بسڕدرێتەوە؟"}</h3>
+                <p className="text-xs leading-relaxed text-muted-foreground">{language === "en" ? "This action can’t be undone." : "ئەم کردارە ناگەڕێتەوە."}</p>
+              </div>
+              <div className="flex gap-2">
+                <button type="button" disabled={isDeletingPost} onClick={() => setShowDeleteConfirm(false)} className="min-h-10 flex-1 rounded-full border border-border text-xs font-semibold hover:bg-muted disabled:opacity-50">{language === "en" ? "Cancel" : "پاشگەزبوونەوە"}</button>
+                <button type="button" disabled={isDeletingPost} onClick={handleDelete} className="min-h-10 flex-1 rounded-full bg-rose-600 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50">{isDeletingPost ? (language === "en" ? "Deleting…" : "دەسڕێتەوە..." ) : (language === "en" ? "Delete post" : "سڕینەوەی پۆست")}</button>
               </div>
             </motion.div>
           </motion.div>

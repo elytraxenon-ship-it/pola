@@ -51,7 +51,9 @@ interface ProfilePageProps {
   posts: Post[];
   onAddPost?: (newPost: Post) => void;
   onLikeToggle?: (postId: string) => void;
-  onAddComment?: (postId: string, commentText: string) => void;
+  onAddComment?: (postId: string, commentText: string) => void | Promise<unknown>;
+  onEditPost?: (postId: string, newContent: string) => void | Promise<void>;
+  onDeletePost?: (postId: string) => void | Promise<void>;
   onOpenDialog?: (post: Post) => void;
   onViewProfile?: (userId: string) => void;
   onBackToFeed?: () => void;
@@ -65,6 +67,8 @@ export function ProfilePage({
   onAddPost,
   onLikeToggle,
   onAddComment,
+  onEditPost,
+  onDeletePost,
   onOpenDialog,
   onViewProfile,
   onBackToFeed,
@@ -1262,6 +1266,8 @@ export function ProfilePage({
                     onViewProfile={onViewProfile}
                     onLikeToggle={onLikeToggle}
                     onAddComment={onAddComment}
+                    onEditPost={onEditPost}
+                    onDeletePost={onDeletePost}
                     onOpenDialog={onOpenDialog}
                   />
                 ))

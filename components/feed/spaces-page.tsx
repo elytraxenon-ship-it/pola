@@ -179,9 +179,9 @@ export const POLA_TAGS: PolaTag[] = [
 interface SpacesPageProps {
   posts: Post[];
   onLikeToggle?: (postId: string) => void;
-  onAddComment?: (postId: string, commentText: string) => void;
-  onEditPost?: (postId: string, newContent: string) => void;
-  onDeletePost?: (postId: string) => void;
+  onAddComment?: (postId: string, commentText: string) => void | Promise<unknown>;
+  onEditPost?: (postId: string, newContent: string) => void | Promise<void>;
+  onDeletePost?: (postId: string) => void | Promise<void>;
   onOpenDialog?: (post: Post) => void;
   currentUser?: User;
   onViewProfile?: (userId: string) => void;

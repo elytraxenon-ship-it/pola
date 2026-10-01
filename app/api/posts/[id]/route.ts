@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { mockDb } from "@/lib/mock-api-db";
 import { deleteFromR2, extractR2BucketAndKey } from "@/lib/r2";
 import { CACHE_TAGS, revalidateCacheTag } from "@/lib/cache";
@@ -99,48 +99,39 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const body = await request.json();
     const { content } = body;
 
-    if (!content || typeof content !== "string" || !content.trim()) {
+    if (typeof content !== "string" || !content.trim() || content.trim().length > 10000) {
       return NextResponse.json(
-        { error: "دەقی پۆستەکە ناتوانرێت بەتاڵ بێت" },
+        { error: "دەقی پۆست پێویستە و نابێت لە ١٠٠٠٠ پیت زیاتر بێت" },
         { status: 400 }
       );
     }
 
-    try {
-      const supabase = await createClient();
-      const { data: updated, error } = await supabase
-        .from("posts")
-        .update({ content: content.trim() })
-        .eq("id", id)
-        .select()
-        .single();
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "تکایە سەرەتا بچۆ ژوورەوە" }, { status: 401 });
 
-      if (updated && !error) {
-        mockDb.updatePost(id, { content: content.trim() });
-        try {
-          revalidateCacheTag(CACHE_TAGS.feed);
-        } catch (e) {}
-        return NextResponse.json(updated);
-      }
-    } catch (err) {
-      console.error("PATCH /api/posts/[id] Supabase error:", err);
-    }
+    const admin = createAdminClient();
+    const { data: existing, error: lookupError } = await admin
+      .from("posts").select("author_id").eq("id", id).maybeSingle();
+    if (lookupError) throw lookupError;
+    if (!existing) return NextResponse.json({ error: "پۆستەکە نەدۆزرایەوە" }, { status: 404 });
+    if (existing.author_id !== user.id) return NextResponse.json({ error: "تەنها خاوەنی پۆست دەتوانێت دەستکاری بکات" }, { status: 403 });
 
-    // Fallback to mockDb
-    const updatedMock = mockDb.updatePost(id, { content: content.trim() });
-    if (!updatedMock) {
-      return NextResponse.json(
-        { error: "پۆستەکە نەدۆزرایەوە بۆ دەستکاریکردن" },
-        { status: 404 }
-      );
-    }
+    const { data: updated, error } = await admin
+      .from("posts")
+      .update({ content: content.trim() })
+      .eq("id", id)
+      .eq("author_id", user.id)
+      .select()
+      .maybeSingle();
+    if (error) throw error;
+    if (!updated) return NextResponse.json({ error: "پۆستەکە نەدۆزرایەوە" }, { status: 404 });
 
-    try {
-      revalidateCacheTag(CACHE_TAGS.feed);
-    } catch (e) {}
-
-    return NextResponse.json(updatedMock);
+    revalidateCacheTag(CACHE_TAGS.feed);
+    revalidateCacheTag(CACHE_TAGS.profile(user.id));
+    return NextResponse.json(updated, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
+    console.error("PATCH /api/posts/[id] error:", error);
     return NextResponse.json(
       { error: "هەڵەیەک ڕوویدا لە کاتی نوێکردنەوەی پۆستدا" },
       { status: 500 }
@@ -154,65 +145,44 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
   try {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "تکایە سەرەتا بچۆ ژوورەوە" }, { status: 401 });
 
-    // 1. Fetch post info to check for media in R2
-    const { data: postToDelete } = await supabase
+    const admin = createAdminClient();
+    const { data: existing, error: lookupError } = await admin
       .from("posts")
-      .select("media_url, author_id, profiles:author_id(sequential_id)")
+      .select("author_id,media_url")
       .eq("id", id)
       .maybeSingle();
+    if (lookupError) throw lookupError;
+    if (!existing) return NextResponse.json({ error: "پۆستەکە نەدۆزرایەوە" }, { status: 404 });
+    if (existing.author_id !== user.id) return NextResponse.json({ error: "تەنها خاوەنی پۆست دەتوانێت بیسڕێتەوە" }, { status: 403 });
 
-    // 2. Delete media from R2 if present
-    if (postToDelete?.media_url) {
-      const r2 = extractR2BucketAndKey(postToDelete.media_url);
+    // Delete the authorized database row first; storage cleanup must never run
+    // for an unauthorized request or remove media while leaving the post live.
+    const { data: deleted, error } = await admin.from("posts")
+      .delete()
+      .eq("id", id)
+      .eq("author_id", user.id)
+      .select("id,media_url")
+      .maybeSingle();
+    if (error) throw error;
+    if (!deleted) return NextResponse.json({ error: "پۆستەکە نەدۆزرایەوە" }, { status: 404 });
+
+    if (deleted.media_url) {
+      const r2 = extractR2BucketAndKey(deleted.media_url);
       if (r2) {
-        try {
-          await deleteFromR2(r2.bucket, r2.key);
-        } catch (r2Err) {
-          console.warn("[R2] Failed to delete media on post delete:", r2Err);
-        }
+        try { await deleteFromR2(r2.bucket, r2.key); }
+        catch (storageError) { console.error("Post media cleanup failed:", storageError); }
       }
     }
 
-    // 3. Delete post row from Supabase
-    const { error } = await supabase.from("posts").delete().eq("id", id);
-    if (!error) {
-      mockDb.deletePost(id);
-
-      // 4. Invalidate feed and author profile cache
-      try {
-        revalidateCacheTag(CACHE_TAGS.feed);
-        if (postToDelete?.author_id) {
-          revalidateCacheTag(CACHE_TAGS.profile(postToDelete.author_id));
-          const profile = postToDelete.profiles as { sequential_id?: number | string } | null;
-          if (profile?.sequential_id) revalidateCacheTag(CACHE_TAGS.profile(String(profile.sequential_id)));
-        }
-      } catch (e) {}
-
-      return NextResponse.json({
-        success: true,
-        message: "پۆستەکە بە سەرکەوتوویی سڕدرایەوە",
-      });
-    }
+    revalidateCacheTag(CACHE_TAGS.feed);
+    revalidateCacheTag(CACHE_TAGS.profile(user.id));
+    mockDb.deletePost(id);
+    return NextResponse.json({ success: true }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (err) {
     console.error("DELETE /api/posts/[id] Supabase error:", err);
   }
-
-  // Fallback to mockDb
-  const success = mockDb.deletePost(id);
-  if (!success) {
-    return NextResponse.json(
-      { error: "پۆستەکە نەدۆزرایەوە بۆ سڕینەوە" },
-      { status: 404 }
-    );
-  }
-
-  try {
-    revalidateCacheTag(CACHE_TAGS.feed);
-  } catch (e) {}
-
-  return NextResponse.json({
-    success: true,
-    message: "پۆستەکە بە سەرکەوتوویی سڕدرایەوە",
-  });
+  return NextResponse.json({ error: "نەتوانرا پۆستەکە بسڕدرێتەوە" }, { status: 500 });
 }
