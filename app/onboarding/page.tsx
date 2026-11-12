@@ -956,7 +956,6 @@ export default function OnboardingPage() {
                         <h3 className="font-bold text-foreground text-sm sm:text-base">
                           {userName || "بەکارهێنەری پۆلا"}
                         </h3>
-                        <Sparkles className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
                       </div>
 
                       <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono" dir="ltr">

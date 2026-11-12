@@ -1,5 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Vazirmatn } from "next/font/google";
+import Script from "next/script";
+import { AppInstallProvider } from "@/components/app-install";
+import { LanguageProvider } from "@/lib/language-context";
 import "./globals.css";
 
 const vazirmatn = Vazirmatn({
@@ -11,10 +14,15 @@ const vazirmatn = Vazirmatn({
 export const metadata: Metadata = {
   title: "پۆلا - تۆڕی کۆمەڵایەتی",
   description: "لەگەڵ جیهانەکەت پەیوەندی ببەستە لە پۆلا",
+  icons: { apple: { url: "/pwa-icons/apple.png", sizes: "180x180", type: "image/png" } },
 };
 
-import { LanguageProvider } from "@/lib/language-context";
-import Script from "next/script";
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#111111" },
+  ],
+};
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
@@ -29,7 +37,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         />
       </head>
       <body className="min-h-full flex flex-col font-sans">
-        <LanguageProvider>{children}</LanguageProvider>
+        <LanguageProvider>
+          <AppInstallProvider>{children}</AppInstallProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

@@ -4,6 +4,7 @@ import {
   Activity,
   Atom,
   BookOpen,
+  Briefcase,
   Building2,
   Check,
   ChevronDown,
@@ -14,6 +15,7 @@ import {
   FlaskConical,
   Gamepad2,
   Heart,
+  Languages,
   Palette,
   Search,
   Sparkles,
@@ -24,10 +26,10 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PostCard } from "./post-card";
 import { Post, User } from "./types";
+import { findPostTopics, getPostTopic, POST_TOPICS } from "@/lib/post-topics";
 
 export interface PolaTag {
   id: string;
-  label: string;
   labelKu: string;
   icon: React.ElementType;
   color: string;
@@ -42,9 +44,7 @@ export interface PolaTag {
 
 export const POLA_TAGS: PolaTag[] = [
   {
-    id: "developer",
-    label: "developer",
-    labelKu: "پرۆگرامەرەکان",
+    ...POST_TOPICS.developer,
     icon: Code2,
     color: "text-violet-400",
     gradient: "from-violet-600/25 via-indigo-600/15 to-transparent",
@@ -56,9 +56,7 @@ export const POLA_TAGS: PolaTag[] = [
     isTrending: true,
   },
   {
-    id: "graphic_designer",
-    label: "graphic_designer",
-    labelKu: "دیزاینەرەکان",
+    ...POST_TOPICS.design,
     icon: Palette,
     color: "text-pink-400",
     gradient: "from-pink-600/25 via-rose-600/15 to-transparent",
@@ -70,9 +68,7 @@ export const POLA_TAGS: PolaTag[] = [
     isTrending: true,
   },
   {
-    id: "Architecture",
-    label: "Architecture",
-    labelKu: "تەلارسازی و بیناسازی",
+    ...POST_TOPICS.architecture,
     icon: Building2,
     color: "text-amber-400",
     gradient: "from-amber-600/25 via-orange-600/15 to-transparent",
@@ -83,9 +79,7 @@ export const POLA_TAGS: PolaTag[] = [
     memberCount: "٩٥٠ بەشداربوو",
   },
   {
-    id: "Medical",
-    label: "Medical",
-    labelKu: "پزیشکی و تەندروستی",
+    ...POST_TOPICS.medical,
     icon: Heart,
     color: "text-rose-400",
     gradient: "from-rose-600/25 via-red-600/15 to-transparent",
@@ -97,9 +91,7 @@ export const POLA_TAGS: PolaTag[] = [
     isTrending: true,
   },
   {
-    id: "sports",
-    label: "sports",
-    labelKu: "وەرزش و لەشجوانی",
+    ...POST_TOPICS.fitness,
     icon: Trophy,
     color: "text-emerald-400",
     gradient: "from-emerald-600/25 via-teal-600/15 to-transparent",
@@ -110,9 +102,7 @@ export const POLA_TAGS: PolaTag[] = [
     memberCount: "٣.١ هەزار بەشداربوو",
   },
   {
-    id: "History",
-    label: "History",
-    labelKu: "مێژوو و شوێنەوار",
+    ...POST_TOPICS.history,
     icon: BookOpen,
     color: "text-amber-500",
     gradient: "from-amber-700/25 via-yellow-600/15 to-transparent",
@@ -123,9 +113,7 @@ export const POLA_TAGS: PolaTag[] = [
     memberCount: "٨٤٠ بەشداربوو",
   },
   {
-    id: "Chemistry",
-    label: "Chemistry",
-    labelKu: "کیمیا",
+    ...POST_TOPICS.chemistry,
     icon: FlaskConical,
     color: "text-teal-400",
     gradient: "from-teal-600/25 via-cyan-600/15 to-transparent",
@@ -136,9 +124,7 @@ export const POLA_TAGS: PolaTag[] = [
     memberCount: "٥٢٠ بەشداربوو",
   },
   {
-    id: "Biology",
-    label: "Biology",
-    labelKu: "بایۆلۆژی و ژینگە",
+    ...POST_TOPICS.biology,
     icon: Dna,
     color: "text-lime-400",
     gradient: "from-lime-600/25 via-emerald-600/15 to-transparent",
@@ -149,9 +135,7 @@ export const POLA_TAGS: PolaTag[] = [
     memberCount: "٦١٠ بەشداربوو",
   },
   {
-    id: "Sport",
-    label: "Sport",
-    labelKu: "ئەتلەتیک و یارییەکان",
+    ...POST_TOPICS.sport,
     icon: Atom,
     color: "text-indigo-400",
     gradient: "from-indigo-600/25 via-purple-600/15 to-transparent",
@@ -162,9 +146,7 @@ export const POLA_TAGS: PolaTag[] = [
     memberCount: "٧٨٠ بەشداربوو",
   },
   {
-    id: "games",
-    label: "games",
-    labelKu: "یارییەکان",
+    ...POST_TOPICS.games,
     icon: Gamepad2,
     color: "text-fuchsia-400",
     gradient: "from-fuchsia-600/25 via-purple-600/15 to-transparent",
@@ -173,6 +155,28 @@ export const POLA_TAGS: PolaTag[] = [
     description: "یارییە دیجیتاڵییەکان، یارییە ئەلیکترۆنییەکان و دروستکردنی یاری",
     stats: "٧٠+ سات",
     memberCount: "٥٢٠ بەشداربوو",
+  },
+  {
+    ...POST_TOPICS.jobs,
+    icon: Briefcase,
+    color: "text-sky-500",
+    gradient: "from-sky-600/25 via-blue-600/15 to-transparent",
+    bgGlow: "bg-sky-500/10",
+    borderHover: "hover:border-sky-500/40",
+    description: "هەلی کار، ڕاهێنان و دەرفەتی پیشەیی",
+    stats: "",
+    memberCount: "",
+  },
+  {
+    ...POST_TOPICS.kurdish,
+    icon: Languages,
+    color: "text-orange-500",
+    gradient: "from-orange-600/25 via-amber-600/15 to-transparent",
+    bgGlow: "bg-orange-500/10",
+    borderHover: "hover:border-orange-500/40",
+    description: "زمان و ئەدەبی کوردی، کولتوور و کۆمەڵگەی کوردی",
+    stats: "",
+    memberCount: "",
   },
 ];
 
@@ -238,22 +242,22 @@ export function SpacesPage({
     // Filter by tag if selected
     if (activeTag) {
       result = result.filter((post) =>
-        post.tags?.some(
-          (tag) =>
-            tag.toLowerCase() === activeTag.toLowerCase() ||
-            tag.toLowerCase().replace(/_/g, "") === activeTag.toLowerCase().replace(/_/g, "")
-        )
+        post.tags?.some((tag) => getPostTopic(tag)?.id === activeTag)
       );
     }
 
     // Filter by search query if present
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
+      const matchingTopicIds = new Set(findPostTopics(q).map((topic) => topic.id));
       result = result.filter(
         (p) =>
           p.content?.toLowerCase().includes(q) ||
           p.author.name?.toLowerCase().includes(q) ||
-          p.tags?.some((t) => t.toLowerCase().includes(q))
+          p.tags?.some((tag) => {
+            const topic = getPostTopic(tag);
+            return tag.toLowerCase().includes(q) || (topic && matchingTopicIds.has(topic.id));
+          })
       );
     }
 
@@ -447,7 +451,7 @@ export function SpacesPage({
                                   {tag.labelKu}
                                 </span>
                                 <span className="text-[10px] text-muted-foreground font-mono">
-                                  #{tag.label}
+                                  #{tag.id}
                                 </span>
                               </div>
                             </div>

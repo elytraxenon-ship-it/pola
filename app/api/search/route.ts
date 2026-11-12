@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { findPostTopics } from "@/lib/post-topics";
 
 const MAX_QUERY_LENGTH = 80;
 const MIN_QUERY_LENGTH = 3;
@@ -69,7 +70,7 @@ export async function GET(request: NextRequest) {
     .normalize("NFKC")
     .replace(/^\s*@/, "")
     .replace(/[\u0000-\u001f\u007f]/g, " ")
-    .replace(/[%_*(),\\]/g, " ")
+    .replace(/[%_*(),"\\]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, MAX_QUERY_LENGTH);
@@ -116,16 +117,21 @@ export async function GET(request: NextRequest) {
     // Remove PostgREST filter syntax and wildcard characters before composing
     // this OR expression. Query length is bounded above and matches are limited.
     const pattern = `%${query}%`;
+    const topicTags = [...new Set(findPostTopics(rawQuery.slice(0, MAX_QUERY_LENGTH))
+      .flatMap(({ id }) => [id, id.toLowerCase()]))];
+    const postQuery = supabase.from("posts")
+      .select("id,content,media_url,created_at,profiles:author_id(id,sequential_id,username,full_name,avatar_url)")
+      .eq("privacy", "public");
+    const matchingPosts = topicTags.length
+      ? postQuery.or(`content.ilike."${pattern}",tags.ov.{${topicTags.join(",")}}`)
+      : postQuery.ilike("content", pattern);
     const [userResult, postResult] = await Promise.all([
       supabase.from("profiles")
         .select("id,sequential_id,username,full_name,avatar_url,role,followers_count")
         .or(`username.ilike.${pattern},full_name.ilike.${pattern}`)
         .order("followers_count", { ascending: false })
         .limit(RESULT_LIMIT),
-      supabase.from("posts")
-        .select("id,content,media_url,created_at,profiles:author_id(id,sequential_id,username,full_name,avatar_url)")
-        .eq("privacy", "public")
-        .ilike("content", pattern)
+      matchingPosts
         .order("created_at", { ascending: false })
         .limit(RESULT_LIMIT),
     ]);

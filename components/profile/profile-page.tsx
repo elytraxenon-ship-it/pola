@@ -799,7 +799,6 @@ export function ProfilePage({
             <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
               {name}
             </h1>
-            <Sparkles className="h-5 w-5 text-amber-500 fill-amber-500 shrink-0" />
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-xs md:text-sm text-muted-foreground">
@@ -1216,7 +1215,7 @@ export function ProfilePage({
           <div className="rounded-2xl border border-border/70 bg-card p-4 shadow-xs space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                {language === "en" ? "Featured Gallery" : "پێشانگای هەڵبژێردراو"}
+                {language === "en" ? "Photos" : "وێنەکان"}
               </h3>
               <button type="button" onClick={() => {
                 setActiveTab("media");

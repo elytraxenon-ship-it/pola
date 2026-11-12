@@ -4,7 +4,7 @@ import {
   ArrowRight,
   Bell,
   CheckCheck,
-  Flame,
+  Heart,
   MessageSquare,
   Sparkles,
   UserCheck,
@@ -18,14 +18,14 @@ import { useLanguage } from "@/lib/language-context";
 
 
 const ICON: Record<NotificationItem["type"], React.ReactNode> = {
-  flame:   <Flame className="h-3 w-3 fill-current" />,
+  flame:   <Heart className="h-3 w-3 fill-current" />,
   comment: <MessageSquare className="h-3 w-3" />,
   invite:  <UserCheck className="h-3 w-3" />,
   spark:   <Sparkles className="h-3 w-3" />,
 };
 
 const BG: Record<NotificationItem["type"], string> = {
-  flame:   "bg-amber-500",
+  flame:   "bg-rose-600",
   comment: "bg-blue-500",
   invite:  "bg-emerald-500",
   spark:   "bg-purple-500",
@@ -51,7 +51,7 @@ export function NotificationsPage({ onBack, onOpenPost, onViewProfile }: Notific
   const toggle = (id: string) => markAsRead(id);
 
   const typeLabel: Record<NotificationItem["type"], string> = {
-    flame:   language === "en" ? "Flame" : "دەنگدانەوە",
+    flame:   language === "en" ? "Like" : "دەنگدانەوە",
     comment: language === "en" ? "Comment" : "لێدوان",
     invite:  language === "en" ? "Invite" : "بانگهێشت",
     spark:   language === "en" ? "Spark" : "چەخماخە",

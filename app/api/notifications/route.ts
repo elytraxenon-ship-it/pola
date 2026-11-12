@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
         text: n.content || "چالاکییەکی نوێ لەسەر پڕۆفایلەکەت تۆمارکرا",
         textEn:
           n.type === "flame"
-            ? "liked your moment with a flame boost"
+            ? "liked your post"
             : n.type === "comment"
             ? "commented on your moment"
             : "interacted with you",

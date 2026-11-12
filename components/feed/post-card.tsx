@@ -5,13 +5,12 @@ import {
   Check,
   Copy,
   Edit3,
-  Flame,
+  Heart,
   MessageSquare,
   MoreHorizontal,
   Repeat2,
   Send,
   Share2,
-  Sparkles,
   Trash2,
   X,
 } from "lucide-react";
@@ -24,6 +23,7 @@ import { CURRENT_USER } from "./dummy-data";
 import { Comment, Post, User } from "./types";
 import { useLanguage } from "@/lib/language-context";
 import { EmojiPicker } from "./emoji-picker";
+import { getPostTopic } from "@/lib/post-topics";
 
 interface PostCardProps {
   post: Post;
@@ -344,9 +344,6 @@ export function PostCard({
               <button type="button" onClick={() => onViewProfile?.(post.author.id)} className="font-bold text-xs md:text-sm text-foreground hover:underline cursor-pointer">
                 {post.author.name}
               </button>
-              {post.author.verified && (
-                <Sparkles className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-              )}
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <span dir="ltr" className="font-sans">{post.author.handle}</span>
@@ -489,7 +486,7 @@ export function PostCard({
                     key={tag}
                     className="rounded-full bg-muted/60 px-2.5 py-0.5 text-[11px] font-medium text-foreground/80 hover:bg-muted transition-colors cursor-pointer"
                   >
-                    #{tag}
+                    {(language === "ckb" && getPostTopic(tag)?.labelKu) || `#${tag}`}
                   </span>
                 ))}
               </div>
@@ -514,19 +511,23 @@ export function PostCard({
       {/* Resonance Engagement Bar */}
       <div className="flex items-center justify-between border-t border-border/50 px-3 py-1.5">
         <div className="flex items-center gap-1">
-          {/* Resonance / Flame Boost */}
+          {/* Like */}
           <motion.button
+            type="button"
             whileTap={{ scale: 0.92 }}
             onClick={handleLike}
+            aria-pressed={isLikedLocal}
+            aria-label={language === "en" ? "Like post" : "بەدڵبوونی پۆست"}
             className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
               isLikedLocal
-                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                ? "bg-rose-500/15 text-rose-600 dark:text-rose-400"
+                : "text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400"
             }`}
           >
-            <Flame
+            <Heart
+              aria-hidden="true"
               className={`h-4 w-4 transition-transform ${
-                isLikedLocal ? "fill-amber-500 text-amber-500 scale-110" : ""
+                isLikedLocal ? "fill-current scale-110" : ""
               }`}
             />
             <span>{likesCountLocal.toLocaleString()}</span>

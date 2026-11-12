@@ -479,7 +479,6 @@ export default function HomePage({ onLogout, initialView = "feed" }: HomePagePro
             {/* Feed Filter / Skeleton Demo Bar */}
             <div className="flex items-center justify-between px-2 py-1">
               <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
                 <span>{dir === "ltr" ? "Moments Stream" : "دەریای ساتەکان"}</span>
               </div>
 

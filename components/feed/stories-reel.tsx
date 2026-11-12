@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, LoaderCircle, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { ChevronLeft, LoaderCircle, Plus, Trash2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast";
@@ -255,7 +255,6 @@ export function StoriesReel({ currentUser }: StoriesReelProps) {
 
       <div className="mb-3 flex flex-col gap-1 px-1 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
         <div className="flex items-center gap-1.5 text-xs font-bold text-foreground sm:text-sm">
-          <Sparkles className="size-4 shrink-0 text-amber-500" />
           <span>لێدانی ڕاستەوخۆ و ساتەکان</span>
         </div>
         <span className="text-[10px] font-medium text-muted-foreground sm:text-[11px]">دوای ٢٤ کاتژمێر نامێنێت</span>

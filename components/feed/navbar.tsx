@@ -2,18 +2,14 @@
 
 import {
   Bell,
-  Compass,
-  Flame,
-  Globe2,
+  Download,
   LogOut,
   Plus,
-  Radio,
-  Search,
   Settings,
-  Sparkles,
   User as UserIcon,
 } from "lucide-react";
 import { motion } from "motion/react";
+import { useAppInstall } from "@/components/app-install";
 import { useCallback, useState } from "react";
 import { Avatar10 } from "@/components/motion/avatar";
 import { Button } from "@/components/motion/button";
@@ -55,7 +51,8 @@ export function Navbar({
   currentUser,
 }: NavbarProps) {
   const user = currentUser ?? CURRENT_USER;
-  const { dir, t } = useLanguage();
+  const { dir, language, t } = useLanguage();
+  const openInstall = useAppInstall();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(3);
@@ -65,8 +62,8 @@ export function Navbar({
   }, []);
 
   const channels = [
-    { id: "pulse", label: "لێدان", icon: Flame },
-    { id: "spaces", label: "بوارەکان", icon: Radio },
+    { id: "pulse", label: t("feed") },
+    { id: "spaces", label: t("spheresTab") },
   ];
 
   return (
@@ -95,13 +92,14 @@ export function Navbar({
         {/* Center: Pola 2-Channel Segmented Switch */}
         <nav className="order-3 mx-auto flex w-fit items-center rounded-full border border-border/80 bg-muted/40 p-1 shadow-2xs backdrop-blur-md md:order-none md:mx-0 md:w-auto">
           {channels.map((channel) => {
-            const Icon = channel.icon;
             const isActive = activeTab === channel.id;
             return (
               <button
                 key={channel.id}
+                type="button"
+                aria-pressed={isActive}
                 onClick={() => onTabChange?.(channel.id)}
-                className={`relative flex min-h-9 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-bold transition-all cursor-pointer sm:gap-2 sm:px-5 ${
+                className={`relative flex min-h-9 items-center rounded-full px-4 py-1.5 text-xs font-bold transition-all cursor-pointer sm:px-5 ${
                   isActive
                     ? "text-primary-foreground font-black"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
@@ -114,7 +112,6 @@ export function Navbar({
                     transition={{ type: "spring", stiffness: 450, damping: 35 }}
                   />
                 )}
-                <Icon className={`relative z-10 h-3.5 w-3.5 ${isActive ? "text-background" : ""}`} />
                 <span className={`relative z-10 ${isActive ? "text-background" : ""}`}>
                   {channel.label}
                 </span>
@@ -250,6 +247,20 @@ export function Navbar({
                     <Settings className="h-3.5 w-3.5 text-muted-foreground" />
                     <span>{t("settings")}</span>
                   </button>
+
+                  {openInstall && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        openInstall();
+                      }}
+                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+                    >
+                      <Download className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span>{language === "en" ? "Install Pola" : "دامەزراندنی پۆلا"}</span>
+                    </button>
+                  )}
 
                   <button
                     onClick={() => {

@@ -4,7 +4,7 @@ import {
   Bell,
   CheckCheck,
   ChevronLeft,
-  Flame,
+  Heart,
   MessageSquare,
   Sparkles,
   UserCheck,
@@ -37,7 +37,7 @@ export const ALL_NOTIFICATIONS: NotificationItem[] = [
       avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=200&q=80",
     },
     text: "دەنگدانەوەی گەرمی بۆ ساتەکەت تۆمار کرد",
-    textEn: "liked your moment with a flame boost",
+    textEn: "liked your post",
     time: "٥ خولەک",
     timeEn: "5m",
     read: false,
@@ -96,14 +96,14 @@ interface NotificationsPopoverProps {
 }
 
 const ICON: Record<NotificationItem["type"], React.ReactNode> = {
-  flame:   <Flame className="h-2.5 w-2.5 fill-current" />,
+  flame:   <Heart className="h-2.5 w-2.5 fill-current" />,
   comment: <MessageSquare className="h-2.5 w-2.5" />,
   invite:  <UserCheck className="h-2.5 w-2.5" />,
   spark:   <Sparkles className="h-2.5 w-2.5" />,
 };
 
 const BG: Record<NotificationItem["type"], string> = {
-  flame:   "bg-amber-500",
+  flame:   "bg-rose-600",
   comment: "bg-blue-500",
   invite:  "bg-emerald-500",
   spark:   "bg-purple-500",

@@ -13,7 +13,7 @@ interface Translations {
 
 export const TRANSLATIONS: Translations = {
   // Navigation & Channels
-  feed: { ckb: "دەریای ساتەکان", en: "Moments Pulse" },
+  feed: { ckb: "بڵاوکراوەکان", en: "Posts" },
   forYou: { ckb: "هەڵبژێردراو بۆ تۆ", en: "For You" },
   sparks: { ckb: "پڕدەنگدانەوە", en: "Trending" },
   live: { ckb: "پەخشی ڕاستەوخۆ", en: "Live Broadcast" },
@@ -65,7 +65,7 @@ export const TRANSLATIONS: Translations = {
   activeInPola: { ckb: "چالاک لە پۆلا", en: "Active in Pola" },
   posts: { ckb: "ساتەکان", en: "Moments" },
   media: { ckb: "میدیا", en: "Media" },
-  spheresTab: { ckb: "بوارەکان", en: "Spheres" },
+  spheresTab: { ckb: "بوارەکان", en: "Topics" },
   followers: { ckb: "شوێنکەوتووان", en: "Followers" },
   following: { ckb: "شوێنکەوتوو", en: "Following" },
   impactScore: { ckb: "نمرەی کاریگەری", en: "Impact Score" },

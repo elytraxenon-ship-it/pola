@@ -3,7 +3,6 @@
 import {
   BarChart3,
   Bookmark,
-  Flame,
   Globe2,
   Mic,
   Orbit,
@@ -35,7 +34,7 @@ export function LeftSidebar({
   const user = currentUser ?? CURRENT_USER;
 
   const channels = [
-    { id: "pulse", label: t("feed"), icon: Flame, badge: language === "en" ? "Live" : "ڕاستەوخۆ", color: "text-amber-500", clickable: true },
+    { id: "pulse", label: t("feed"), icon: null, badge: language === "en" ? "Live" : "ڕاستەوخۆ", color: "text-amber-500", clickable: true },
     { id: "foryou", label: t("forYou"), icon: Sparkles, color: "text-purple-500", clickable: false },
     { id: "spheres", label: t("spheres"), icon: Orbit, color: "text-cyan-500", clickable: false },
     { id: "lounges", label: t("lounges"), icon: Mic, color: "text-rose-500", clickable: false },
@@ -87,7 +86,7 @@ export function LeftSidebar({
                 className="flex items-center justify-between rounded-xl px-3 py-2 text-xs font-medium text-muted-foreground/50 cursor-default select-none"
               >
                 <div className="flex items-center gap-2.5">
-                  <Icon className="h-4 w-4 shrink-0 text-muted-foreground/40" />
+                  {Icon && <Icon className="h-4 w-4 shrink-0 text-muted-foreground/40" />}
                   <span>{ch.label}</span>
                 </div>
               </div>
@@ -111,7 +110,7 @@ export function LeftSidebar({
               }`}
             >
               <div className="flex items-center gap-2.5">
-                <Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-background" : ch.color}`} />
+                {Icon && <Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-background" : ch.color}`} />}
                 <span>{ch.label}</span>
               </div>
               {ch.badge && (

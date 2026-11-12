@@ -17,6 +17,7 @@ import { Button } from "@/components/motion/button";
 import { toast } from "@/components/ui/toast";
 import { CURRENT_USER } from "./dummy-data";
 import { POLA_TAGS } from "./spaces-page";
+import { findPostTopics, getPostTopic } from "@/lib/post-topics";
 import { Post } from "./types";
 import { useLanguage } from "@/lib/language-context";
 import { compressPostImage, cropImageToAspect } from "@/lib/image-compress";
@@ -62,12 +63,8 @@ export function CreatePost({ onAddPost, autoOpen, onAutoOpenHandled, currentUser
     }
   }, [autoOpen, onAutoOpenHandled]);
 
-  const hashSuggestions = POLA_TAGS.filter(
-    (t) =>
-      !hashQuery ||
-      t.id.toLowerCase().startsWith(hashQuery.toLowerCase()) ||
-      t.labelKu.startsWith(hashQuery)
-  );
+  const matchingTopicIds = new Set<string>(findPostTopics(hashQuery).map((topic) => topic.id));
+  const hashSuggestions = POLA_TAGS.filter((topic) => !hashQuery || matchingTopicIds.has(topic.id));
 
   // Detect # typing in textarea
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -77,7 +74,7 @@ export function CreatePost({ onAddPost, autoOpen, onAutoOpenHandled, currentUser
     // Find if cursor is right after a #
     const pos = e.target.selectionStart ?? val.length;
     const before = val.slice(0, pos);
-    const hashMatch = before.match(/#(\w*)$/);
+    const hashMatch = before.match(/#([\p{L}\p{M}\p{N}_]*)$/u);
     if (hashMatch) {
       setHashQuery(hashMatch[1]);
       setShowHashMenu(true);
@@ -92,7 +89,7 @@ export function CreatePost({ onAddPost, autoOpen, onAutoOpenHandled, currentUser
     const pos = textareaRef.current?.selectionStart ?? content.length;
     const before = content.slice(0, pos);
     const after = content.slice(pos);
-    const replaced = before.replace(/#(\w*)$/, `#${tagId} `);
+    const replaced = before.replace(/#([\p{L}\p{M}\p{N}_]*)$/u, `#${tagId} `);
     setContent(replaced + after);
     setSelectedTag(tagId);
     setShowHashMenu(false);
@@ -188,17 +185,10 @@ export function CreatePost({ onAddPost, autoOpen, onAutoOpenHandled, currentUser
       }
 
       // Extract all tags from content (e.g. #developer #Medical)
-      const mentionedTags = (content.match(/#(\w+)/g) || []).map((t) =>
-        t.replace("#", "")
+      const mentionedTags = Array.from(content.matchAll(/#([\p{L}\p{M}\p{N}_]+)/gu), ([, tag]) =>
+        getPostTopic(tag)?.id ?? tag
       );
-      const finalTags =
-        selectedTag && !mentionedTags.includes(selectedTag)
-          ? [selectedTag, ...mentionedTags]
-          : mentionedTags.length > 0
-          ? mentionedTags
-          : selectedTag
-          ? [selectedTag]
-          : [];
+      const finalTags = [...new Set(selectedTag ? [selectedTag, ...mentionedTags] : mentionedTags)];
 
       const res = await fetch("/api/posts", {
         method: "POST",
@@ -382,7 +372,7 @@ export function CreatePost({ onAddPost, autoOpen, onAutoOpenHandled, currentUser
                                   {tag.labelKu}
                                 </div>
                                 <div className="text-[10px] text-muted-foreground">
-                                  #{tag.label}
+                                  #{tag.id}
                                 </div>
                               </div>
                             </button>
@@ -415,7 +405,7 @@ export function CreatePost({ onAddPost, autoOpen, onAutoOpenHandled, currentUser
                         }`}
                       >
                         <Icon className={`h-3 w-3 ${isSelected ? "" : tag.color}`} />
-                        <span>#{tag.label}</span>
+                        <span>{tag.labelKu}</span>
                       </button>
                     );
                   })}

@@ -1,13 +1,12 @@
 "use client";
 
 import {
-  Flame,
+  Heart,
   Globe2,
   MessageSquare,
   Reply,
   Send,
   Share2,
-  Sparkles,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Avatar10 } from "@/components/motion/avatar";
@@ -23,6 +22,7 @@ import { Comment, Post, User } from "./types";
 import { useLanguage } from "@/lib/language-context";
 import { toast } from "@/components/ui/toast";
 import { EmojiPicker } from "./emoji-picker";
+import { getPostTopic } from "@/lib/post-topics";
 
 interface PostDialogProps {
   post: Post | null;
@@ -202,9 +202,6 @@ export function PostDialog({
                       {post.author.name}
                     </button>
                   </DialogTitle>
-                  {post.author.verified && (
-                    <Sparkles className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-                  )}
                 </div>
                 <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                   <span>{post.author.handle}</span>
@@ -233,7 +230,7 @@ export function PostDialog({
                     key={tag}
                     className="rounded-full bg-muted/60 px-2.5 py-0.5 text-[11px] font-medium text-foreground/80"
                   >
-                    #{tag}
+                    {(language === "ckb" && getPostTopic(tag)?.labelKu) || `#${tag}`}
                   </span>
                 ))}
               </div>
@@ -255,17 +252,20 @@ export function PostDialog({
           <div className="flex items-center justify-between border-y border-border/50 py-2 text-xs">
             <div className="flex items-center gap-2">
               <button
+                type="button"
                 onClick={() => onLikeToggle?.(post.id, !post.isLiked)}
+                aria-pressed={Boolean(post.isLiked)}
+                aria-label={language === "en" ? "Like post" : "بەدڵبوونی پۆست"}
                 className={`flex items-center gap-1.5 rounded-full px-3 py-1 font-semibold transition-colors cursor-pointer ${
                   post.isLiked
-                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                    : "text-muted-foreground hover:bg-muted"
+                    ? "bg-rose-500/15 text-rose-600 dark:text-rose-400"
+                    : "text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400"
                 }`}
               >
-                <Flame className={`h-4 w-4 ${post.isLiked ? "fill-amber-500" : ""}`} />
+                <Heart aria-hidden="true" className={`h-4 w-4 ${post.isLiked ? "fill-current" : ""}`} />
                 <span>
                   {language === "en"
-                    ? `${post.likesCount} Resonances`
+                    ? `${post.likesCount} likes`
                     : `${post.likesCount} دەنگدانەوە`}
                 </span>
               </button>
